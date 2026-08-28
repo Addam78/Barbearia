@@ -1,0 +1,84 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+//g Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+enum Role {
+  CLIENT
+  BARBER
+}
+ 
+model User {
+  id       String @id @default(uuid())
+  name     String
+  email    String @unique
+  password String
+  role     Role
+ 
+  // Lado virtual — não existe coluna no banco, é calculado a partir de Appointment.
+  // Usado quando ESTE usuário aparece como o cliente de um agendamento.
+  appointmentsAsClient Appointment[] @relation("ClientAppointments")
+ 
+  // Lado virtual — usado quando ESTE usuário aparece como o barbeiro de um agendamento.
+  appointmentsAsBarber Appointment[] @relation("BarberAppointments")
+ 
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+ 
+  @@map("users")
+}
+ 
+model Service {
+  id              String  @id @default(uuid())
+  name            String
+  price           Decimal @db.Decimal(10, 2)
+  durationMinutes Int
+ 
+  appointments Appointment[]
+ 
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+ 
+  @@map("services")
+}
+ 
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+ 
+model Appointment {
+  id String @id @default(uuid())
+ 
+  // As três FKs "paralelas" — cada uma obrigatória, cada uma independente das outras.
+  clientId  String
+  barberId  String
+  serviceId String
+ 
+  scheduledAt DateTime
+  status      AppointmentStatus @default(PENDING)
+ 
+  // Lado real de cada relação — aqui vive a FK de fato (fields/references).
+  client  User    @relation("ClientAppointments", fields: [clientId], references: [id])
+  barber  User    @relation("BarberAppointments", fields: [barberId], references: [id])
+  service Service @relation(fields: [serviceId], references: [id])
+ 
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+ 
+
+  @@unique([barberId, scheduledAt])
+  @@map("appointments")
+}
