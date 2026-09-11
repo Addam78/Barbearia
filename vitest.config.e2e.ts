@@ -1,11 +1,15 @@
 import { defineConfig } from 'vitest/config';
-import tsconfigPaths from 'vite-tsconfig-paths';
+import swc from 'unplugin-swc';
 
 export default defineConfig({
-  plugins: [tsconfigPaths()],
   test: {
+    include: ['**/*.e2e-spec.ts'],
     globals: true,
     root: './',
-    include: ['**/*.e2e-spec.ts'],
+    setupFiles: ['./test/setup-e2e.ts'],
+    // e2e compartilha um único banco de teste — sem paralelismo entre arquivos
+    // para os beforeEach de limpeza não colidirem entre si.
+    fileParallelism: false,
   },
+  plugins: [swc.vite()],
 });
