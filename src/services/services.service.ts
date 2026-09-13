@@ -16,7 +16,8 @@ export class ServicesService {
             throw new ConflictException('Serviço ja cadastrado')
         }
 
-        const create = await this.prisma.service.create({
+        try{
+              const create = await this.prisma.service.create({
             data:{
                 name:dto.name,
                 price:dto.price,
@@ -25,6 +26,23 @@ export class ServicesService {
         })
 
         return create
+        }catch(error){
+            console.error(error)
+        }
+        
+      
+
+        
+    }
+
+    async findAll(){
+
+        const searchServices = await this.prisma.service.findMany ({
+            
+        })
+        
+        return {searchServices}
+      
     }
 }
 

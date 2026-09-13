@@ -1,3 +1,6 @@
+overrides:
+  ora: '5.4.1'
+
 allowBuilds:
   '@nestjs/core': true
   '@prisma/client': true
