@@ -14,6 +14,7 @@ pnpm install
 
 # 2. copiar variáveis de ambiente
 cp .env.example .env
+cp .env.test.example .env.test
 
 # 3. subir o Postgres
 docker compose up -d
@@ -61,7 +62,9 @@ pnpm format    # prettier
 
 ## Variáveis de ambiente
 
-Veja [.env.example](./.env.example) para a lista completa. As principais:
+Nenhum arquivo `.env*` é versionado no repositório — apenas os templates `.env.example` e `.env.test.example`. Copie-os e ajuste os valores conforme necessário (veja o passo a passo acima).
+
+As principais variáveis:
 
 | Variável | Descrição |
 |---|---|
