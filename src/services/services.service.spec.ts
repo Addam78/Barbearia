@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConflictException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 
 import { ServicesService } from './services.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -20,6 +20,7 @@ describe('ServicesService', () => {
               create: vi.fn(),
               findMany: vi.fn(),
               update: vi.fn(),
+              delete: vi.fn(),
             },
           },
         },
@@ -120,5 +121,35 @@ describe('ServicesService', () => {
     })
   })
 
+  describe('deleteService', () => {
+    it('deve remover um serviço de acordo com id', async () => {
+      vi.mocked(prisma.service.findUnique).mockResolvedValue({
+        id: 'service-1', name: 'Corte Americano', price: 20, durationMinutes: 40,
+      } as any);
+
+      vi.mocked(prisma.service.delete).mockResolvedValue({
+        id: 'service-1', name: 'Corte Americano', price: 20, durationMinutes: 40,
+      } as any);
+
+      const result = await service.deleteService('service-1');
+
+      expect(result).toEqual({
+        id: 'service-1', name: 'Corte Americano', price: 20, durationMinutes: 40,
+      });
+      expect(prisma.service.delete).toHaveBeenCalledWith({
+        where: { id: 'service-1' },
+      });
+    });
+
+    it('deve lançar NotFoundException se o serviço não existir', async () => {
+      vi.mocked(prisma.service.findUnique).mockResolvedValue(null);
+
+      await expect(service.deleteService('id-inexistente')).rejects.toThrow(
+        NotFoundException,
+      );
+
+      expect(prisma.service.delete).not.toHaveBeenCalled();
+    });
+  });
 
 });

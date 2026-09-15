@@ -51,7 +51,23 @@ export class ServicesService {
             where:{id},
             data:dto
         })
-    }       
+    } 
+    
+    async deleteService(id:string){
+        const service = await this.prisma.service.findUnique({
+            where : {id}
+        })
+
+        if(!service){
+            throw new NotFoundException('Serviço não existente')
+        }
+
+        return this.prisma.service.delete({
+            where : {id}
+        })
+
+        
+    }
 }
 
     

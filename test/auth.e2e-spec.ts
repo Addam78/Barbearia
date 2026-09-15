@@ -21,6 +21,7 @@ describe('Auth (e2e)', () => {
 
   beforeEach(async () => {
     await prisma.appointment.deleteMany();
+    await prisma.service.deleteMany();
     await prisma.user.deleteMany();
   });
 
@@ -120,5 +121,39 @@ test('[PATCH] /services -com token', async () => {
   expect(response.body.name).toBe('Corte americano');
 });
 
+test('[DELETE] /services -com token', async () => {
+  await request(app.getHttpServer()).post('/auth/register').send({
+    name: 'Barbeiro',
+    email: 'barbeiro.teste@example.com',
+    password: '123456',
+    role: 'BARBER',
+  });
+
+  const loginResponse = await request(app.getHttpServer()).post('/auth/login').send({
+    email: 'barbeiro.teste@example.com',
+    password: '123456',
+  });
+
+  const { accessToken } = loginResponse.body;
+
+  const createResponse = await request(app.getHttpServer())
+    .post('/services')
+    .set('Authorization', `Bearer ${accessToken}`)
+    .send({ name: 'Corte simples', price: 20, durationMinutes: 30 });
+
+  const serviceId = createResponse.body.id;
+
+  const response = await request(app.getHttpServer())
+    .delete(`/services/${serviceId}`)
+    .set('Authorization', `Bearer ${accessToken}`);
+
+  expect(response.statusCode).toBe(204);
+
+  const findAfterDelete = await request(app.getHttpServer())
+    .get('/services')
+    .set('Authorization', `Bearer ${accessToken}`);
+
+  expect(findAfterDelete.body.searchServices).toEqual([]);
+});
 
 })
