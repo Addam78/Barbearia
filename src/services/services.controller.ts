@@ -6,12 +6,12 @@ import { CreateServiceDto } from './dto/createservice.dto.js';
 export class ServicesController {
     constructor(private readonly servicesService: ServicesService) {}
 
-    @Post('create')
+    @Post()
     create(@Body() dto:CreateServiceDto){
         return this.servicesService.createService(dto)
     }
 
-    @Get('view')
+    @Get()
     findAll(){
         return this.servicesService.findAll()
     }

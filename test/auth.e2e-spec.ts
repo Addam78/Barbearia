@@ -53,7 +53,7 @@ describe('Auth (e2e)', () => {
       password: '123456',
     });
 
-    expect(response.statusCode).toBe(201);
+    expect(response.statusCode).toBe(200);
     expect(response.body).toHaveProperty('accessToken');
   });
 

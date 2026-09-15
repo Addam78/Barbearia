@@ -12,26 +12,19 @@ export class ServicesService {
             where:{name:dto.name}
         })
 
-        if(findName){
+        if (findName) {
             throw new ConflictException('Serviço ja cadastrado')
         }
 
-        try{
-              const create = await this.prisma.service.create({
-            data:{
-                name:dto.name,
-                price:dto.price,
-                durationMinutes:dto.durationMinutes
+        const create = await this.prisma.service.create({
+            data: {
+                name: dto.name,
+                price: dto.price,
+                durationMinutes: dto.durationMinutes
             }
         })
 
         return create
-        }catch(error){
-            console.error(error)
-        }
-        
-      
-
         
     }
 
