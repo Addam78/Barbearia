@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [addam]
+    branches: [addam, main]
   pull_request:
-    branches: [master]
+    branches: [main]
 
 jobs:
   lint:
