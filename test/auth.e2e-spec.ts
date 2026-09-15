@@ -205,7 +205,7 @@ test('[DELETE] /services -com token', async () => {
     .get('/services')
     .set('Authorization', `Bearer ${accessToken}`);
 
-  expect(findAfterDelete.body.searchServices).toEqual([]);
+  expect(findAfterDelete.body).toEqual([]);
 });
 
 })

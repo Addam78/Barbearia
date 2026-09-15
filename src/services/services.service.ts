@@ -1,7 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { CreateServiceDto } from './dto/createservice.dto.js';
-import { UpdateServiceDto } from './dto/updateservice.dto.js';
+import { CreateServiceDto } from './dto/create-service.dto.js';
+import { UpdateServiceDto } from './dto/update-service.dto.js';
 
 @Injectable()
 export class ServicesService {
@@ -30,13 +30,7 @@ export class ServicesService {
     }
 
     async findAll(){
-
-        const searchServices = await this.prisma.service.findMany ({
-            
-        })
-        
-        return {searchServices}
-      
+        return this.prisma.service.findMany()
     }
 
     async findOne(id:string){

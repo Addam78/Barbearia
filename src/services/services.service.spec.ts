@@ -88,11 +88,9 @@ describe('ServicesService', () => {
 
       const result = await service.findAll();
 
-      expect(result).toEqual({
-        searchServices: [
-          { id: 'service-1', name: 'Corte americano', price: 20, durationMinutes: 40 },
-        ],
-      });
+      expect(result).toEqual([
+        { id: 'service-1', name: 'Corte americano', price: 20, durationMinutes: 40 },
+      ]);
     });
   });
 

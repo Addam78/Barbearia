@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post } from '@nestjs/common';
 import { ServicesService } from './services.service.js';
-import { CreateServiceDto } from './dto/createservice.dto.js';
-import { UpdateServiceDto } from './dto/updateservice.dto.js';
+import { CreateServiceDto } from './dto/create-service.dto.js';
+import { UpdateServiceDto } from './dto/update-service.dto.js';
 
 
 @Controller('services')
