@@ -86,4 +86,39 @@ describe('Auth (e2e)', () => {
   expect(response.statusCode).toBe(200);
 });
 
+test('[PATCH] /services -com token', async () => {
+  // 1. login pra ter token (mesmo padrão do teste anterior)
+  await request(app.getHttpServer()).post('/auth/register').send({
+    name: 'Barbeiro',
+    email: 'barbeiro.teste@example.com',
+    password: '123456',
+    role: 'BARBER',
+  });
+
+  const loginResponse = await request(app.getHttpServer()).post('/auth/login').send({
+    email: 'barbeiro.teste@example.com',
+    password: '123456',
+  });
+
+  const { accessToken } = loginResponse.body;
+
+  // 2. cria um serviço pra ter o que atualizar
+  const createResponse = await request(app.getHttpServer())
+    .post('/services')
+    .set('Authorization', `Bearer ${accessToken}`)
+    .send({ name: 'Corte simples', price: 20, durationMinutes: 30 });
+
+  const serviceId = createResponse.body.id;
+
+  // 3. atualiza
+  const response = await request(app.getHttpServer())
+    .patch(`/services/${serviceId}`)
+    .set('Authorization', `Bearer ${accessToken}`)
+    .send({ name: 'Corte americano' });
+
+  expect(response.statusCode).toBe(200);
+  expect(response.body.name).toBe('Corte americano');
+});
+
+
 })

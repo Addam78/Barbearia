@@ -19,6 +19,7 @@ describe('ServicesService', () => {
               findUnique: vi.fn(),
               create: vi.fn(),
               findMany: vi.fn(),
+              update: vi.fn(),
             },
           },
         },
@@ -92,6 +93,32 @@ describe('ServicesService', () => {
       });
     });
   });
+
+  describe('updateService' ,() =>{
+    it('deve alterar um serviço de acordo com id',async()=>{
+      vi.mocked(prisma.service.findUnique).mockResolvedValue({
+        id:'service-1',name:'Corte Americano',price:20, durationMinutes:40,
+      } as any)
+      
+      vi.mocked(prisma.service.update).mockResolvedValue({
+         id: 'service-1', name: 'Corte simples', price: 20, durationMinutes: 40 ,
+    }as any)
+
+      const result = await service.updateService('service-1', {name:'Corte simples'})
+
+      expect(result).toEqual({
+        id:'service-1',
+        name:'Corte simples',
+        price:20,
+        durationMinutes:40
+      })
+      expect(prisma.service.update).toHaveBeenCalledWith({
+      where: { id: 'service-1' },
+      data: { name: 'Corte simples' },
+    });
+
+    })
+  })
 
 
 });

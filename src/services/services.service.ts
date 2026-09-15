@@ -1,6 +1,7 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreateServiceDto } from './dto/createservice.dto.js';
+import { UpdateServiceDto } from './dto/updateservice.dto.js';
 
 @Injectable()
 export class ServicesService {
@@ -37,6 +38,20 @@ export class ServicesService {
         return {searchServices}
       
     }
+
+    async updateService(id:string, dto:UpdateServiceDto){
+        const service = await this.prisma.service.findUnique ({
+            where : {id}
+        })
+        if(!service){
+            throw new NotFoundException('Serviço não encontrado')
+        }
+
+        return this.prisma.service.update({
+            where:{id},
+            data:dto
+        })
+    }       
 }
 
     
