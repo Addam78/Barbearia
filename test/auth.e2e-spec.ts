@@ -121,6 +121,58 @@ test('[PATCH] /services -com token', async () => {
   expect(response.body.name).toBe('Corte americano');
 });
 
+test('[GET] /services/:id -com token', async () => {
+  await request(app.getHttpServer()).post('/auth/register').send({
+    name: 'Barbeiro',
+    email: 'barbeiro.teste@example.com',
+    password: '123456',
+    role: 'BARBER',
+  });
+
+  const loginResponse = await request(app.getHttpServer()).post('/auth/login').send({
+    email: 'barbeiro.teste@example.com',
+    password: '123456',
+  });
+
+  const { accessToken } = loginResponse.body;
+
+  const createResponse = await request(app.getHttpServer())
+    .post('/services')
+    .set('Authorization', `Bearer ${accessToken}`)
+    .send({ name: 'Corte simples', price: 20, durationMinutes: 30 });
+
+  const serviceId = createResponse.body.id;
+
+  const response = await request(app.getHttpServer())
+    .get(`/services/${serviceId}`)
+    .set('Authorization', `Bearer ${accessToken}`);
+
+  expect(response.statusCode).toBe(200);
+  expect(response.body.name).toBe('Corte simples');
+});
+
+test('[GET] /services/:id -com token - id inexistente', async () => {
+  await request(app.getHttpServer()).post('/auth/register').send({
+    name: 'Barbeiro',
+    email: 'barbeiro.teste@example.com',
+    password: '123456',
+    role: 'BARBER',
+  });
+
+  const loginResponse = await request(app.getHttpServer()).post('/auth/login').send({
+    email: 'barbeiro.teste@example.com',
+    password: '123456',
+  });
+
+  const { accessToken } = loginResponse.body;
+
+  const response = await request(app.getHttpServer())
+    .get('/services/00000000-0000-0000-0000-000000000000')
+    .set('Authorization', `Bearer ${accessToken}`);
+
+  expect(response.statusCode).toBe(404);
+});
+
 test('[DELETE] /services -com token', async () => {
   await request(app.getHttpServer()).post('/auth/register').send({
     name: 'Barbeiro',

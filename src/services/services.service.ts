@@ -39,6 +39,18 @@ export class ServicesService {
       
     }
 
+    async findOne(id:string){
+        const result = await this.prisma.service.findUnique({
+            where :{id}
+        })
+
+        if(!result){
+            throw new NotFoundException('Serviço com id não encontrado')
+        }
+
+        return result
+    }
+
     async updateService(id:string, dto:UpdateServiceDto){
         const service = await this.prisma.service.findUnique ({
             where : {id}

@@ -18,6 +18,11 @@ export class ServicesController {
         return this.servicesService.findAll()
     }
 
+    @Get(':id')
+    findOne(@Param('id') id:string){
+        return this.servicesService.findOne(id)
+    }
+    
     @Patch(':id')
     updateService(@Param('id') id:string, @Body() dto:UpdateServiceDto){
         return this.servicesService.updateService(id,dto)

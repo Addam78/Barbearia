@@ -21,6 +21,7 @@ describe('ServicesService', () => {
               findMany: vi.fn(),
               update: vi.fn(),
               delete: vi.fn(),
+              findOne:vi.fn()
             },
           },
         },
@@ -94,6 +95,27 @@ describe('ServicesService', () => {
       });
     });
   });
+
+  
+  describe('findOne', () => {
+  it('deve retornar um serviço de acordo com id', async () => {
+    vi.mocked(prisma.service.findUnique).mockResolvedValue({
+      id: 'service-1', name: 'Corte maquina 0', price: 30, durationMinutes: 23,
+    } as any);
+
+    const result = await service.findOne('service-1');
+
+    expect(result).toEqual({
+      id: 'service-1', name: 'Corte maquina 0', price: 30, durationMinutes: 23,
+    });
+  });
+
+  it('deve lançar NotFoundException se o serviço não existir', async () => {
+    vi.mocked(prisma.service.findUnique).mockResolvedValue(null);
+
+    await expect(service.findOne('id-inexistente')).rejects.toThrow(NotFoundException);
+  });
+});
 
   describe('updateService' ,() =>{
     it('deve alterar um serviço de acordo com id',async()=>{
