@@ -7,11 +7,7 @@ import { UpdateUserDto } from './dto/update-user.dto.js';
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
-  @Get('ola')
-    hello(){
-       return this.usersService.hello()
-    }
-   
+
   
   @Post()
   create(@Body() createUserDto: CreateUserDto) {
