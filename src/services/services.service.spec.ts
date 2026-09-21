@@ -139,6 +139,16 @@ describe('ServicesService', () => {
     });
 
     })
+
+    it('deve lançar NotFoundException se o serviço não existir', async () => {
+      vi.mocked(prisma.service.findUnique).mockResolvedValue(null);
+
+      await expect(
+        service.updateService('id-inexistente', { name: 'Corte simples' }),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(prisma.service.update).not.toHaveBeenCalled();
+    });
   })
 
   describe('deleteService', () => {

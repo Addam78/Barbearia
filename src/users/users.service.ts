@@ -5,18 +5,24 @@ import { PrismaService } from '../prisma/prisma.service.js';
 
 @Injectable()
 export class UsersService {
+
   constructor(private prisma:PrismaService){}
   
+
   async findAll() {
       const result = await this.prisma.user.findMany({})
-      
       return {result}
   }
 
+  
   async findOne(id: string) {
     const result = await this.prisma.user.findUnique({
       where:{id}
     })
+
+    if(!result){
+      throw new NotFoundException('Usuario com id informado não encontrado')
+    }
 
     return result
   }
