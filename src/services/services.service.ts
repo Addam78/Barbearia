@@ -29,8 +29,22 @@ export class ServicesService {
         
     }
 
-    async findAll(){
-        return this.prisma.service.findMany()
+    async findAll(page = 1, limit = 10) {
+        const [data, total] = await Promise.all([
+            this.prisma.service.findMany({
+                skip: (page - 1) * limit,
+                take: limit,
+            }),
+            this.prisma.service.count(),
+        ])
+
+        return {
+            data,
+            total,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit),
+        }
     }
 
     async findOne(id:string){

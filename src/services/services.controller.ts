@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
 import { ServicesService } from './services.service.js';
 import { CreateServiceDto } from './dto/create-service.dto.js';
 import { UpdateServiceDto } from './dto/update-service.dto.js';
@@ -14,8 +14,8 @@ export class ServicesController {
     }
 
     @Get()
-    findAll(){
-        return this.servicesService.findAll()
+    findAll(@Query('page') page?:string, @Query('limit') limit?:string){
+        return this.servicesService.findAll(Number(page) || 1,Number(limit) || 10)
     }
 
     @Get(':id')

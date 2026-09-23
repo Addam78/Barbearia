@@ -21,7 +21,8 @@ describe('ServicesService', () => {
               findMany: vi.fn(),
               update: vi.fn(),
               delete: vi.fn(),
-              findOne:vi.fn()
+              findOne:vi.fn(),
+              count: vi.fn(),
             },
           },
         },
@@ -85,12 +86,19 @@ describe('ServicesService', () => {
       vi.mocked(prisma.service.findMany).mockResolvedValue([
         { id: 'service-1', name: 'Corte americano', price: 20, durationMinutes: 40 },
       ] as any);
+      vi.mocked(prisma.service.count).mockResolvedValue(1);
 
       const result = await service.findAll();
 
-      expect(result).toEqual([
-        { id: 'service-1', name: 'Corte americano', price: 20, durationMinutes: 40 },
-      ]);
+      expect(result).toEqual({
+        data: [
+          { id: 'service-1', name: 'Corte americano', price: 20, durationMinutes: 40 },
+        ],
+        total: 1,
+        page: 1,
+        limit: 10,
+        totalPages: 1,
+      });
     });
   });
 

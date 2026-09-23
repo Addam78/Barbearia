@@ -21,7 +21,8 @@ describe('UsersService', () => {
              findMany: vi.fn(),
              findUnique: vi.fn(),
              update: vi.fn(),
-             delete: vi.fn()
+             delete: vi.fn(),
+             count: vi.fn(),
             },
           },
         },
@@ -46,13 +47,18 @@ describe('UsersService', () => {
       vi.mocked(prisma.user.findMany).mockResolvedValue([
         {id:'user-1',name:'João', email:'joao@example.com',role:'CLIENT'}
       ]as any)
+      vi.mocked(prisma.user.count).mockResolvedValue(1)
 
       const result = await service.findAll()
 
       expect(result).toEqual({
-        result: [
+        data: [
           {id:'user-1', name:'João',email:'joao@example.com',role:'CLIENT'}
-        ]
+        ],
+        total: 1,
+        page: 1,
+        limit: 10,
+        totalPages: 1,
       })
     })
   })
@@ -102,6 +108,7 @@ describe('UsersService', () => {
       expect(prisma.user.update).toHaveBeenCalledWith({
         where: { id: 'user-1' },
         data: { name: 'Maicon' },
+        select: { id: true, name: true, email: true, role: true, createdAt: true, updatedAt: true },
       });
     })
    })
@@ -123,6 +130,7 @@ describe('UsersService', () => {
       })
       expect(prisma.user.delete).toHaveBeenCalledWith({
         where: { id: 'user-1' },
+        select: { id: true, name: true, email: true, role: true, createdAt: true, updatedAt: true },
       });
     })
 
