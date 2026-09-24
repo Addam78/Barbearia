@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConflictException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 
 import { ServicesService } from './services.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -19,6 +19,10 @@ describe('ServicesService', () => {
               findUnique: vi.fn(),
               create: vi.fn(),
               findMany: vi.fn(),
+              update: vi.fn(),
+              delete: vi.fn(),
+              findOne:vi.fn(),
+              count: vi.fn(),
             },
           },
         },
@@ -82,16 +86,108 @@ describe('ServicesService', () => {
       vi.mocked(prisma.service.findMany).mockResolvedValue([
         { id: 'service-1', name: 'Corte americano', price: 20, durationMinutes: 40 },
       ] as any);
+      vi.mocked(prisma.service.count).mockResolvedValue(1);
 
       const result = await service.findAll();
 
       expect(result).toEqual({
-        searchServices: [
+        data: [
           { id: 'service-1', name: 'Corte americano', price: 20, durationMinutes: 40 },
         ],
+        total: 1,
+        page: 1,
+        limit: 10,
+        totalPages: 1,
       });
     });
   });
 
+  
+  describe('findOne', () => {
+  it('deve retornar um serviço de acordo com id', async () => {
+    vi.mocked(prisma.service.findUnique).mockResolvedValue({
+      id: 'service-1', name: 'Corte maquina 0', price: 30, durationMinutes: 23,
+    } as any);
+
+    const result = await service.findOne('service-1');
+
+    expect(result).toEqual({
+      id: 'service-1', name: 'Corte maquina 0', price: 30, durationMinutes: 23,
+    });
+  });
+
+  it('deve lançar NotFoundException se o serviço não existir', async () => {
+    vi.mocked(prisma.service.findUnique).mockResolvedValue(null);
+
+    await expect(service.findOne('id-inexistente')).rejects.toThrow(NotFoundException);
+  });
+});
+
+  describe('updateService' ,() =>{
+    it('deve alterar um serviço de acordo com id',async()=>{
+      vi.mocked(prisma.service.findUnique).mockResolvedValue({
+        id:'service-1',name:'Corte Americano',price:20, durationMinutes:40,
+      } as any)
+      
+      vi.mocked(prisma.service.update).mockResolvedValue({
+         id: 'service-1', name: 'Corte simples', price: 20, durationMinutes: 40 ,
+    }as any)
+
+      const result = await service.updateService('service-1', {name:'Corte simples'})
+
+      expect(result).toEqual({
+        id:'service-1',
+        name:'Corte simples',
+        price:20,
+        durationMinutes:40
+      })
+      expect(prisma.service.update).toHaveBeenCalledWith({
+      where: { id: 'service-1' },
+      data: { name: 'Corte simples' },
+    });
+
+    })
+
+    it('deve lançar NotFoundException se o serviço não existir', async () => {
+      vi.mocked(prisma.service.findUnique).mockResolvedValue(null);
+
+      await expect(
+        service.updateService('id-inexistente', { name: 'Corte simples' }),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(prisma.service.update).not.toHaveBeenCalled();
+    });
+  })
+
+  describe('deleteService', () => {
+    it('deve remover um serviço de acordo com id', async () => {
+      vi.mocked(prisma.service.findUnique).mockResolvedValue({
+        id: 'service-1', name: 'Corte Americano', price: 20, durationMinutes: 40,
+      } as any);
+
+      vi.mocked(prisma.service.delete).mockResolvedValue({
+        id: 'service-1', name: 'Corte Americano', price: 20, durationMinutes: 40,
+      } as any);
+
+      const result = await service.deleteService('service-1');
+
+      expect(result).toEqual({
+        id: 'service-1', name: 'Corte Americano', price: 20, durationMinutes: 40,
+      });
+      expect(prisma.service.delete).toHaveBeenCalledWith({
+        where: { id: 'service-1' },
+      });
+    });
+
+    it('deve lançar NotFoundException se o serviço não existir', async () => {
+      vi.mocked(prisma.service.findUnique).mockResolvedValue(null);
+
+      await expect(service.deleteService('id-inexistente')).rejects.toThrow(
+        NotFoundException,
+      );
+
+      expect(prisma.service.delete).not.toHaveBeenCalled();
+    });
+  });
 
 });
