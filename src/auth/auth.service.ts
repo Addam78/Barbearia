@@ -13,6 +13,7 @@ export class AuthService {
     private jwtService: JwtService
   ){} 
 
+
   async register (dto:RegisterDto){
     const userExists = await this.prisma.user.findUnique({
         where:{email:dto.email}
@@ -29,7 +30,7 @@ export class AuthService {
         name: dto.name,
         email: dto.email,
         password: hashedPassword,
-        role: dto.role,
+        role : 'CLIENT'
       } 
     })
 

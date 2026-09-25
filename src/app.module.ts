@@ -10,6 +10,7 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard.js';
 import { ServicesModule } from './services/services.module.js';
+import { RolesGuard } from './auth/guards/roles.guard.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -46,6 +47,10 @@ const isTest = process.env.NODE_ENV === 'test';
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
     },
+    {
+      provide:APP_GUARD,
+      useClass:RolesGuard
+    }
   ],
 })
 export class AppModule {}

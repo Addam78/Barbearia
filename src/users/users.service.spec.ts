@@ -1,14 +1,17 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { UsersService } from './users.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AuthService } from '../auth/auth.service.js';
 import { JwtService } from '@nestjs/jwt';
+import { exec } from 'child_process';
+
 
 
 describe('UsersService', () => {
   let service: UsersService
   let prisma: PrismaService;
+ 
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -18,6 +21,7 @@ describe('UsersService', () => {
           provide: PrismaService,
           useValue: {
             user: {
+             create: vi.fn(),
              findMany: vi.fn(),
              findUnique: vi.fn(),
              update: vi.fn(),
@@ -35,11 +39,62 @@ describe('UsersService', () => {
 
     service = module.get<UsersService>(UsersService);
     prisma = module.get<PrismaService>(PrismaService);
+  
   });
 
   it('should be defined', () => {
     expect(service).toBeDefined();
   });
+
+  describe('Criar usuario com permissão de admin', ()=>{
+    it('Deve ser possivel criar ususrio com role BARBER' ,async() =>{
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(null)
+
+      vi.mocked(prisma.user.create).mockResolvedValue({
+        id: 'user-1',
+        name: 'João',
+        email: 'joao@example.com',
+        role: 'BARBER',
+      } as any)
+
+      const result = await service.create({
+        name:'João',
+        email:'joao@example.com',
+        password:'123456',
+        role:'BARBER'
+      }as any )
+
+      expect(result).toEqual({
+        id: 'user-1',
+        name: 'João',
+        email: 'joao@example.com',
+        role: 'BARBER',
+      })
+
+
+    })
+  })
+
+  describe ('Deve lançar ConflictException se o email ja existir' ,()=>{
+    it('Deve ser possivel criar usuarios com role BARBER' ,async() =>{
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(
+        ({id:'user-1',name:'João', email:'joao@example.com',role:'BARBER'} as any)
+      )
+
+      await expect(
+        service.create({
+           name: 'João',
+        email: 'joao@example.com',
+        password: '123456',
+        role: 'BARBER',
+        } as any),
+      ).rejects.toThrow(ConflictException)
+
+
+      
+    })
+  })
+
 
 
   describe('Retornar usuarios', () =>{

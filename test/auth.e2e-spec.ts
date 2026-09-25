@@ -1,6 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
+import bcrypt from 'bcryptjs';
 import { AppModule } from '../src/app.module.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 
@@ -519,6 +520,67 @@ test('[DELETE] /appointments/:id -com token', async () => {
     .set('Authorization', `Bearer ${accessToken}`);
 
   expect(findAfterDelete.statusCode).toBe(404);
+});
+
+test('[POST] /users -com token de ADMIN - cria barbeiro', async () => {
+  const hashedPassword = await bcrypt.hash('123456', 8);
+  await prisma.user.create({
+    data: {
+      name: 'Admin',
+      email: 'admin.teste@example.com',
+      password: hashedPassword,
+      role: 'ADMIN',
+    },
+  });
+
+  const loginResponse = await request(app.getHttpServer()).post('/auth/login').send({
+    email: 'admin.teste@example.com',
+    password: '123456',
+  });
+
+  const { accessToken } = loginResponse.body;
+
+  const response = await request(app.getHttpServer())
+    .post('/users')
+    .set('Authorization', `Bearer ${accessToken}`)
+    .send({
+      name: 'Barbeiro Novo',
+      email: 'barbeiro.novo@example.com',
+      password: '123456',
+      role: 'BARBER',
+    });
+
+  expect(response.statusCode).toBe(201);
+  expect(response.body.role).toBe('BARBER');
+  expect(response.body.password).toBeUndefined();
+});
+
+test('[POST] /users -com token de CLIENT - acesso negado', async () => {
+  await request(app.getHttpServer()).post('/auth/register').send({
+    name: 'Cliente',
+    email: 'cliente.teste@example.com',
+    password: '123456',
+    role: 'CLIENT',
+  });
+
+  const loginResponse = await request(app.getHttpServer()).post('/auth/login').send({
+    email: 'cliente.teste@example.com',
+    password: '123456',
+  });
+
+  const { accessToken } = loginResponse.body;
+
+  const response = await request(app.getHttpServer())
+    .post('/users')
+    .set('Authorization', `Bearer ${accessToken}`)
+    .send({
+      name: 'Barbeiro Novo',
+      email: 'barbeiro.novo@example.com',
+      password: '123456',
+      role: 'BARBER',
+    });
+
+  expect(response.statusCode).toBe(403);
 });
 
 })
