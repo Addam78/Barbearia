@@ -4,6 +4,7 @@ import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RegisterDto } from './dto/register.dto.js';
 import { LoginDto } from './dto/login.dto.js';
+import { AcceptInviteDto } from './dto/accept-invite.dto.js';
 
 
 @Injectable()
@@ -57,5 +58,28 @@ export class AuthService {
 
     return {accessToken}
 
+  }async acceptInvite(dto: AcceptInviteDto) {
+  const invite = await this.prisma.inviteToken.findUnique({
+    where: { token: dto.token },
+  });
+
+  if (!invite || invite.status !== 'PENDING') {
+    throw new UnauthorizedException('Convite inválido ou já utilizado');
   }
+
+  const hashedPassword = await bcrypt.hash(dto.password, 8);
+
+  await this.prisma.$transaction([
+    this.prisma.user.update({
+      where: { id: invite.userId },
+      data: { password: hashedPassword },
+    }),
+    this.prisma.inviteToken.update({
+      where: { id: invite.id },
+      data: { status: 'USED' },
+    }),
+  ]);
+
+  return { message: 'Senha definida com sucesso' };
+}
 }

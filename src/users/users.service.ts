@@ -3,11 +3,12 @@ import { CreateUserDto } from './dto/create-user.dto.js';
 import {  UpdateUserDto } from './dto/update-user.dto.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import bcrypt from 'bcryptjs';
+import { NotificationsService } from '../notifications/notifications.service.js';
 
 @Injectable()
 export class UsersService {
 
-  constructor(private prisma:PrismaService){}
+  constructor(private prisma:PrismaService, private notifications : NotificationsService){}
   
 
   private readonly publicFields = {
@@ -25,21 +26,31 @@ export class UsersService {
       where : {email: dto.email}
     })
 
-    if(searchUser){
+    if (searchUser) {
       throw new ConflictException('Email existente')
     }
 
-    const hashedPassword = await bcrypt.hash(dto.password,8)
+    const hashedPassword = await bcrypt.hash(dto.password, 8)
 
-    return this.prisma.user.create({
-      data:{
-        name:dto.name,
-        email:dto.email,
+    const user = await this.prisma.user.create({
+      data: {
+        name: dto.name,
+        email: dto.email,
         password: hashedPassword,
-        role: dto.role
+        role: dto.role,
       },
       select: this.publicFields,
     })
+
+    this.notifications.publishUserCreated({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      needsInvite: true,
+    })
+
+    return user
   }
 
 

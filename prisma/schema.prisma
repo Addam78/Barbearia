@@ -18,11 +18,12 @@ enum Role {
   BARBER
   ADMIN
 }
- 
+
+
 model User {
   id       String @id @default(uuid())
-  name     String @unique
-  email    String 
+  name     String 
+  email    String @unique
   password String
   role     Role
  
@@ -32,7 +33,8 @@ model User {
  
   // Lado virtual — usado quando ESTE usuário aparece como o barbeiro de um agendamento.
   appointmentsAsBarber Appointment[] @relation("BarberAppointments")
- 
+  inviteTokens InviteToken[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
  
@@ -82,4 +84,21 @@ model Appointment {
 
   @@unique([barberId, scheduledAt])
   @@map("appointments")
+}
+
+
+enum InviteStatus {
+  PENDING
+  USED
+}
+
+model InviteToken {
+  id        String       @id @default(uuid())
+  token     String       @unique
+  userId    String
+  user      User         @relation(fields: [userId], references: [id])
+  status    InviteStatus @default(PENDING)
+  createdAt DateTime     @default(now())
+
+  @@map("invite_tokens")
 }

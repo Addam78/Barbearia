@@ -12,6 +12,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard.js';
 import { ServicesModule } from './services/services.module.js';
 import { RolesGuard } from './auth/guards/roles.guard.js';
 import { LoggerModule } from 'nestjs-pino';
+import { NotificationsModule } from './notifications/notifications.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -52,6 +53,7 @@ const isTest = process.env.NODE_ENV === 'test';
     AppointmentsModule,
     UsersModule,
     ServicesModule,
+    NotificationsModule
   ],
   controllers: [AppController],
   providers: [
