@@ -22,6 +22,7 @@ describe('Auth (e2e)', () => {
   beforeEach(async () => {
     await prisma.appointment.deleteMany();
     await prisma.service.deleteMany();
+    await prisma.inviteToken.deleteMany();
     await prisma.user.deleteMany();
   });
 

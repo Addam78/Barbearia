@@ -1,8 +1,9 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, ForbiddenException } from '@nestjs/common';
 import { UsersService } from './users.service.js';
 import { CreateUserDto } from './dto/create-user.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
+import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 
 @Controller('users')
 export class UsersController {
@@ -27,12 +28,22 @@ export class UsersController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
+  update(
+    @Param('id') id: string,
+    @Body() updateUserDto: UpdateUserDto,
+    @CurrentUser() currentUser: { userId: string; role: string },
+  ) {
+    if (currentUser.role !== 'ADMIN' && currentUser.userId !== id) {
+      throw new ForbiddenException('Você só pode editar a própria conta');
+    }
     return this.usersService.updateUser(id, updateUserDto);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
+  remove(@Param('id') id: string, @CurrentUser() currentUser: { userId: string; role: string }) {
+    if (currentUser.role !== 'ADMIN' && currentUser.userId !== id) {
+      throw new ForbiddenException('Você só pode remover a própria conta');
+    }
     return this.usersService.deleteUser(id);
   }
 }

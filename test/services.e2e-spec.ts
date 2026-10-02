@@ -1,6 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
+import bcrypt from 'bcryptjs';
 import { AppModule } from '../src/app.module.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 
@@ -22,6 +23,7 @@ describe('Services (e2e)', () => {
   beforeEach(async () => {
     await prisma.appointment.deleteMany();
     await prisma.service.deleteMany();
+    await prisma.inviteToken.deleteMany();
     await prisma.user.deleteMany();
   });
 
@@ -29,20 +31,42 @@ describe('Services (e2e)', () => {
     await app.close();
   });
 
+  async function getBarberToken() {
+    const hashedPassword = await bcrypt.hash('123456', 8);
+    await prisma.user.create({
+      data: {
+        name: 'Admin',
+        email: 'admin.teste@example.com',
+        password: hashedPassword,
+        role: 'ADMIN',
+      },
+    });
+
+    const adminLogin = await request(app.getHttpServer()).post('/auth/login').send({
+      email: 'admin.teste@example.com',
+      password: '123456',
+    });
+
+    await request(app.getHttpServer())
+      .post('/users')
+      .set('Authorization', `Bearer ${adminLogin.body.accessToken}`)
+      .send({
+        name: 'Barbeiro',
+        email: 'barbeiro.teste@example.com',
+        password: '123456',
+        role: 'BARBER',
+      });
+
+    const barberLogin = await request(app.getHttpServer()).post('/auth/login').send({
+      email: 'barbeiro.teste@example.com',
+      password: '123456',
+    });
+
+    return barberLogin.body.accessToken;
+  }
+
   test('[PATCH] /services -com token', async () => {
-    await request(app.getHttpServer()).post('/auth/register').send({
-      name: 'Barbeiro',
-      email: 'barbeiro.teste@example.com',
-      password: '123456',
-      role: 'BARBER',
-    });
-
-    const loginResponse = await request(app.getHttpServer()).post('/auth/login').send({
-      email: 'barbeiro.teste@example.com',
-      password: '123456',
-    });
-
-    const { accessToken } = loginResponse.body;
+    const accessToken = await getBarberToken();
 
     const createResponse = await request(app.getHttpServer())
       .post('/services')
@@ -61,19 +85,7 @@ describe('Services (e2e)', () => {
   });
 
   test('[GET] /services/:id -com token', async () => {
-    await request(app.getHttpServer()).post('/auth/register').send({
-      name: 'Barbeiro',
-      email: 'barbeiro.teste@example.com',
-      password: '123456',
-      role: 'BARBER',
-    });
-
-    const loginResponse = await request(app.getHttpServer()).post('/auth/login').send({
-      email: 'barbeiro.teste@example.com',
-      password: '123456',
-    });
-
-    const { accessToken } = loginResponse.body;
+    const accessToken = await getBarberToken();
 
     const createResponse = await request(app.getHttpServer())
       .post('/services')
@@ -91,19 +103,7 @@ describe('Services (e2e)', () => {
   });
 
   test('[GET] /services/:id -com token - id inexistente', async () => {
-    await request(app.getHttpServer()).post('/auth/register').send({
-      name: 'Barbeiro',
-      email: 'barbeiro.teste@example.com',
-      password: '123456',
-      role: 'BARBER',
-    });
-
-    const loginResponse = await request(app.getHttpServer()).post('/auth/login').send({
-      email: 'barbeiro.teste@example.com',
-      password: '123456',
-    });
-
-    const { accessToken } = loginResponse.body;
+    const accessToken = await getBarberToken();
 
     const response = await request(app.getHttpServer())
       .get('/services/00000000-0000-0000-0000-000000000000')
@@ -113,19 +113,7 @@ describe('Services (e2e)', () => {
   });
 
   test('[DELETE] /services -com token', async () => {
-    await request(app.getHttpServer()).post('/auth/register').send({
-      name: 'Barbeiro',
-      email: 'barbeiro.teste@example.com',
-      password: '123456',
-      role: 'BARBER',
-    });
-
-    const loginResponse = await request(app.getHttpServer()).post('/auth/login').send({
-      email: 'barbeiro.teste@example.com',
-      password: '123456',
-    });
-
-    const { accessToken } = loginResponse.body;
+    const accessToken = await getBarberToken();
 
     const createResponse = await request(app.getHttpServer())
       .post('/services')

@@ -58,7 +58,9 @@ export class AuthService {
 
     return {accessToken}
 
-  }async acceptInvite(dto: AcceptInviteDto) {
+  }
+  
+  async acceptInvite(dto: AcceptInviteDto) {
   const invite = await this.prisma.inviteToken.findUnique({
     where: { token: dto.token },
   });

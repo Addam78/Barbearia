@@ -11,6 +11,12 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
   }
 
   canActivate(context: ExecutionContext) {
+    // Handlers de mensageria (@RabbitSubscribe) não são requisições HTTP —
+    // não existe token/sessão nesse contexto, então o guard não se aplica.
+    if (context.getType() !== 'http') {
+      return true;
+    }
+
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),

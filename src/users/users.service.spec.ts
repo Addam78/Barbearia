@@ -4,7 +4,7 @@ import { UsersService } from './users.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AuthService } from '../auth/auth.service.js';
 import { JwtService } from '@nestjs/jwt';
-import { exec } from 'child_process';
+import { NotificationsService } from '../notifications/notifications.service.js';
 
 
 
@@ -33,6 +33,10 @@ describe('UsersService', () => {
         {
           provide: JwtService,
           useValue: { sign: vi.fn().mockReturnValue('fake-token') },
+        },
+        {
+          provide: NotificationsService,
+          useValue: { publishUserCreated: vi.fn() },
         },
       ],
     }).compile();
