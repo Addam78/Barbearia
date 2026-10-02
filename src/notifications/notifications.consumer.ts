@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { RabbitSubscribe } from '@golevelup/nestjs-rabbitmq';
+import { MessageHandlerErrorBehavior, RabbitSubscribe } from '@golevelup/nestjs-rabbitmq';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { MailService } from './mail.service.js';
@@ -23,6 +23,7 @@ export class NotificationsConsumer {
         'x-dead-letter-routing-key': 'user.created',
       },
     },
+    errorBehavior: MessageHandlerErrorBehavior.NACK,
   })
   async handleUserCreated(payload: { id: string; name: string; email: string; role: string; needsInvite: boolean }) {
     this.logger.log(`Processando user.created: ${payload.email}`);
