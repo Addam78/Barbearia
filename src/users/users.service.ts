@@ -3,6 +3,7 @@ import { CreateUserDto } from './dto/create-user.dto.js';
 import {  UpdateUserDto } from './dto/update-user.dto.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import bcrypt from 'bcryptjs';
+import { randomBytes } from 'crypto';
 import { NotificationsService } from '../notifications/notifications.service.js';
 
 @Injectable()
@@ -30,7 +31,7 @@ export class UsersService {
       throw new ConflictException('Email existente')
     }
 
-    const hashedPassword = await bcrypt.hash(dto.password, 8)
+    const hashedPassword = await bcrypt.hash(randomBytes(32).toString('hex'), 8)
 
     const user = await this.prisma.user.create({
       data: {

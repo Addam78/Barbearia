@@ -35,27 +35,12 @@ describe('Services (e2e)', () => {
     const hashedPassword = await bcrypt.hash('123456', 8);
     await prisma.user.create({
       data: {
-        name: 'Admin',
-        email: 'admin.teste@example.com',
-        password: hashedPassword,
-        role: 'ADMIN',
-      },
-    });
-
-    const adminLogin = await request(app.getHttpServer()).post('/auth/login').send({
-      email: 'admin.teste@example.com',
-      password: '123456',
-    });
-
-    await request(app.getHttpServer())
-      .post('/users')
-      .set('Authorization', `Bearer ${adminLogin.body.accessToken}`)
-      .send({
         name: 'Barbeiro',
         email: 'barbeiro.teste@example.com',
-        password: '123456',
+        password: hashedPassword,
         role: 'BARBER',
-      });
+      },
+    });
 
     const barberLogin = await request(app.getHttpServer()).post('/auth/login').send({
       email: 'barbeiro.teste@example.com',

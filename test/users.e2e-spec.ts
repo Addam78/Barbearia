@@ -185,7 +185,6 @@ describe('Users (e2e)', () => {
       .send({
         name: 'Barbeiro Novo',
         email: 'barbeiro.novo@example.com',
-        password: '123456',
         role: 'BARBER',
       });
 
@@ -215,7 +214,6 @@ describe('Users (e2e)', () => {
       .send({
         name: 'Barbeiro Novo',
         email: 'barbeiro.novo@example.com',
-        password: '123456',
         role: 'BARBER',
       });
 
