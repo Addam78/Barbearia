@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { createObserveModule } from '@nestjs/observe';
 import { AppointmentsModule } from './appointments/appointments.module.js';
 import { UsersModule } from './users/users.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
@@ -11,8 +10,6 @@ import { ServicesModule } from './services/services.module.js';
 import { RolesGuard } from './auth/guards/roles.guard.js';
 import { LoggerModule } from 'nestjs-pino';
 import { NotificationsModule } from './notifications/notifications.module.js';
-
-export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
 const isTest = process.env.NODE_ENV === 'test';
 
@@ -36,18 +33,6 @@ const isTest = process.env.NODE_ENV === 'test';
     
     PrismaModule,
     AuthModule,
-    // Observabilidade desligada em teste: o worker fica reiniciando e polui a saída.
-    // Distributed tracing, auto-correlated logs, request/job metrics, error
-    // telemetry, alarms, and more — out of the box. Sign up at https://observe.nestjs.com
-    ...(isTest
-      ? []
-      : [
-        ObserveModule.forRoot({
-          appKey: 'YOUR_APP_KEY',
-          appSecret: 'YOUR_APP_SECRET',
-          serviceId: 'Barbearia',
-        }),
-      ]),
     AppointmentsModule,
     UsersModule,
     ServicesModule,
