@@ -71,16 +71,23 @@ export class AuthService {
 
   const hashedPassword = await bcrypt.hash(dto.password, 8);
 
-  await this.prisma.$transaction([
-    this.prisma.user.update({
+  await this.prisma.$transaction(async (tx) => {
+    // "Reserva" o convite: só uma requisição consegue passar de PENDING para USED,
+    // mesmo se duas chegarem ao mesmo tempo com o mesmo token.
+    const claimed = await tx.inviteToken.updateMany({
+      where: { id: invite.id, status: 'PENDING' },
+      data: { status: 'USED' },
+    });
+
+    if (claimed.count !== 1) {
+      throw new UnauthorizedException('Convite inválido ou já utilizado');
+    }
+
+    await tx.user.update({
       where: { id: invite.userId },
       data: { password: hashedPassword },
-    }),
-    this.prisma.inviteToken.update({
-      where: { id: invite.id },
-      data: { status: 'USED' },
-    }),
-  ]);
+    });
+  });
 
   return { message: 'Senha definida com sucesso' };
 }

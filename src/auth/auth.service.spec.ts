@@ -16,17 +16,25 @@ describe('AuthService', () => {
   let prisma: PrismaService;
 
   beforeEach(async () => {
+    const prismaMock: any = {
+      user: {
+        findUnique: vi.fn(),
+        create: vi.fn(),
+        update: vi.fn(),
+      },
+      inviteToken: {
+        findUnique: vi.fn(),
+        updateMany: vi.fn(),
+      },
+    };
+    prismaMock.$transaction = vi.fn((callback) => callback(prismaMock));
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
         {
           provide: PrismaService,
-          useValue: {
-            user: {
-              findUnique: vi.fn(),
-              create: vi.fn(),
-            },
-          },
+          useValue: prismaMock,
         },
         {
           provide: JwtService,
@@ -130,8 +138,81 @@ describe('AuthService', () => {
       ).rejects.toThrow(UnauthorizedException);
     })
   })
-  
-  
+
+  describe('acceptInvite', () => {
+    it('deve definir a senha e marcar o convite como USED', async () => {
+      vi.mocked(prisma.inviteToken.findUnique).mockResolvedValue({
+        id: 'invite-1',
+        userId: 'user-1',
+        token: 'token-valido',
+        status: 'PENDING',
+      } as any);
+      vi.mocked(prisma.inviteToken.updateMany).mockResolvedValue({ count: 1 });
+      vi.mocked(bcrypt.hash).mockResolvedValue('hash-novo' as never);
+
+      const result = await service.acceptInvite({
+        token: 'token-valido',
+        password: 'novaSenha123',
+      });
+
+      expect(result).toEqual({ message: 'Senha definida com sucesso' });
+      expect(prisma.inviteToken.updateMany).toHaveBeenCalledWith({
+        where: { id: 'invite-1', status: 'PENDING' },
+        data: { status: 'USED' },
+      });
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        data: { password: 'hash-novo' },
+      });
+    });
+
+    it('deve lançar UnauthorizedException se o token não existir', async () => {
+      vi.mocked(prisma.inviteToken.findUnique).mockResolvedValue(null);
+
+      await expect(
+        service.acceptInvite({ token: 'token-inexistente', password: 'novaSenha123' }),
+      ).rejects.toThrow(UnauthorizedException);
+
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(prisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it('deve lançar UnauthorizedException se o convite já foi usado', async () => {
+      vi.mocked(prisma.inviteToken.findUnique).mockResolvedValue({
+        id: 'invite-1',
+        userId: 'user-1',
+        token: 'token-usado',
+        status: 'USED',
+      } as any);
+
+      await expect(
+        service.acceptInvite({ token: 'token-usado', password: 'novaSenha123' }),
+      ).rejects.toThrow(UnauthorizedException);
+
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(prisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it('não troca a senha se outra requisição já usou o convite (corrida)', async () => {
+      vi.mocked(prisma.inviteToken.findUnique).mockResolvedValue({
+        id: 'invite-1',
+        userId: 'user-1',
+        token: 'token-valido',
+        status: 'PENDING',
+      } as any);
+      // outra requisição marcou como USED entre a leitura e a gravação
+      vi.mocked(prisma.inviteToken.updateMany).mockResolvedValue({ count: 0 });
+      vi.mocked(bcrypt.hash).mockResolvedValue('hash-novo' as never);
+
+      await expect(
+        service.acceptInvite({ token: 'token-valido', password: 'novaSenha123' }),
+      ).rejects.toThrow(UnauthorizedException);
+
+      expect(prisma.user.update).not.toHaveBeenCalled();
+    });
+  })
+
+
 });
 
 
