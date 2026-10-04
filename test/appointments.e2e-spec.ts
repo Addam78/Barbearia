@@ -183,4 +183,113 @@ describe('Appointments (e2e)', () => {
 
     expect(findAfterDelete.statusCode).toBe(404);
   });
+
+  describe('controle de acesso do CLIENT', () => {
+    async function registerClient(email: string) {
+      const registerResponse = await request(app.getHttpServer())
+        .post('/auth/register')
+        .send({ name: 'Cliente', email, password: '123456' });
+
+      const loginResponse = await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({ email, password: '123456' });
+
+      return { clientId: registerResponse.body.id, accessToken: loginResponse.body.accessToken };
+    }
+
+    async function createAppointmentAsBarber(
+      barberToken: string,
+      barberId: string,
+      clientId: string,
+      serviceId: string,
+      scheduledAt: string,
+    ) {
+      const response = await request(app.getHttpServer())
+        .post('/appointments')
+        .set('Authorization', `Bearer ${barberToken}`)
+        .send({ clientId, barberId, serviceId, scheduledAt });
+
+      return response.body;
+    }
+
+    async function setup() {
+      const barber = await getBarber();
+      const clientA = await registerClient('cliente.a@example.com');
+      const clientB = await registerClient('cliente.b@example.com');
+
+      const serviceResponse = await request(app.getHttpServer())
+        .post('/services')
+        .set('Authorization', `Bearer ${barber.accessToken}`)
+        .send({ name: 'Corte simples', price: 20, durationMinutes: 30 });
+
+      return { barber, clientA, clientB, serviceId: serviceResponse.body.id };
+    }
+
+    test('[POST] /appointments -CLIENT agenda para si mesmo, ignorando o clientId enviado', async () => {
+      const { barber, clientA, clientB, serviceId } = await setup();
+
+      const response = await request(app.getHttpServer())
+        .post('/appointments')
+        .set('Authorization', `Bearer ${clientA.accessToken}`)
+        .send({
+          clientId: clientB.clientId,
+          barberId: barber.barberId,
+          serviceId,
+          scheduledAt: '2026-09-25T09:00:00.000Z',
+        });
+
+      expect(response.statusCode).toBe(201);
+      expect(response.body.clientId).toBe(clientA.clientId);
+    });
+
+    test('[GET] /appointments -CLIENT lista só os próprios agendamentos', async () => {
+      const { barber, clientA, clientB, serviceId } = await setup();
+
+      await createAppointmentAsBarber(barber.accessToken, barber.barberId, clientA.clientId, serviceId, '2026-09-25T09:00:00.000Z');
+      await createAppointmentAsBarber(barber.accessToken, barber.barberId, clientB.clientId, serviceId, '2026-09-25T10:00:00.000Z');
+
+      const response = await request(app.getHttpServer())
+        .get('/appointments')
+        .set('Authorization', `Bearer ${clientA.accessToken}`);
+
+      expect(response.statusCode).toBe(200);
+      expect(response.body.total).toBe(1);
+      expect(response.body.data).toHaveLength(1);
+      expect(response.body.data[0].clientId).toBe(clientA.clientId);
+    });
+
+    test('[GET] /appointments/:id -CLIENT não vê o agendamento de outro cliente', async () => {
+      const { barber, clientA, clientB, serviceId } = await setup();
+
+      const appointmentOfB = await createAppointmentAsBarber(
+        barber.accessToken, barber.barberId, clientB.clientId, serviceId, '2026-09-25T09:00:00.000Z',
+      );
+
+      const response = await request(app.getHttpServer())
+        .get(`/appointments/${appointmentOfB.id}`)
+        .set('Authorization', `Bearer ${clientA.accessToken}`);
+
+      expect(response.statusCode).toBe(404);
+    });
+
+    test('[DELETE] /appointments/:id -CLIENT não remove o agendamento de outro cliente', async () => {
+      const { barber, clientA, clientB, serviceId } = await setup();
+
+      const appointmentOfB = await createAppointmentAsBarber(
+        barber.accessToken, barber.barberId, clientB.clientId, serviceId, '2026-09-25T09:00:00.000Z',
+      );
+
+      const response = await request(app.getHttpServer())
+        .delete(`/appointments/${appointmentOfB.id}`)
+        .set('Authorization', `Bearer ${clientA.accessToken}`);
+
+      expect(response.statusCode).toBe(404);
+
+      const stillThere = await request(app.getHttpServer())
+        .get(`/appointments/${appointmentOfB.id}`)
+        .set('Authorization', `Bearer ${clientB.accessToken}`);
+
+      expect(stillThere.statusCode).toBe(200);
+    });
+  });
 });

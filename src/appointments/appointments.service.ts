@@ -1,15 +1,45 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateAppointmentDto } from './dto/create-appointment.dto.js';
 import { UpdateAppointmentDto } from './dto/update-appointment.dto.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
+export interface AuthUser {
+  userId: string;
+  role: string;
+}
 
 @Injectable()
 export class AppointmentsService {
   constructor(private prisma:PrismaService){}
-  
-   async create(dto: CreateAppointmentDto) {
-    
+
+  // Filtro de visibilidade: ADMIN vê tudo, BARBER só a própria agenda, CLIENT só os próprios agendamentos.
+  private scopeFor(user: AuthUser) {
+    if (user.role === 'ADMIN') return {}
+    if (user.role === 'BARBER') return { barberId: user.userId }
+    return { clientId: user.userId }
+  }
+
+  // 404 (e não 403) quando o agendamento é de outra pessoa, para não revelar que o id existe.
+  private async findOwned(user: AuthUser, id: string) {
+    const appointment = await this.prisma.appointment.findFirst({
+      where: { id, ...this.scopeFor(user) },
+    })
+
+    if (!appointment) {
+      throw new NotFoundException('Agendamento não encontrado')
+    }
+
+    return appointment
+  }
+
+  async create(user: AuthUser, dto: CreateAppointmentDto) {
+
+    const clientId = user.role === 'CLIENT' ? user.userId : dto.clientId
+
+    if (!clientId) {
+      throw new BadRequestException('clientId é obrigatório')
+    }
+
     const findService = await this.prisma.service.findUnique({
       where : {id:dto.serviceId}
     })
@@ -18,7 +48,7 @@ export class AppointmentsService {
       throw new NotFoundException('Serviço não existe ')
     }
 
-    //findService.durationMinutes --> é  tempo do corte 
+    //findService.durationMinutes --> é  tempo do corte
     const startsAt = new Date(dto.scheduledAt)
     const endAt = new Date(startsAt.getTime() + findService.durationMinutes * 60000)
 
@@ -42,7 +72,7 @@ export class AppointmentsService {
 
          return tx.appointment.create({
            data: {
-             clientId: dto.clientId,
+             clientId,
              barberId: dto.barberId,
              serviceId: dto.serviceId,
              scheduledAt: startsAt,
@@ -52,17 +82,18 @@ export class AppointmentsService {
        { isolationLevel: 'Serializable' },
      )
 
-
-
   }
 
-  async findAll(page = 1, limit = 10) {
+  async findAll(user: AuthUser, page = 1, limit = 10) {
+    const where = this.scopeFor(user)
+
     const [data, total] = await Promise.all([
       this.prisma.appointment.findMany({
+        where,
         skip: (page - 1) * limit,
         take: limit,
       }),
-      this.prisma.appointment.count(),
+      this.prisma.appointment.count({ where }),
     ])
 
     return {
@@ -74,28 +105,12 @@ export class AppointmentsService {
     }
   }
 
-  async findOne(id: string) {
-    const scheduledappointment = await this.prisma.appointment.findUnique({
-      where: { id }
-    })
-
-    if (!scheduledappointment) {
-      throw new NotFoundException('Serviço não encontrado')
-    }
-
-    return scheduledappointment
+  async findOne(user: AuthUser, id: string) {
+    return this.findOwned(user, id)
   }
 
-
-
-  async update(id: string, dto: UpdateAppointmentDto) {
-    const scheduledappointment = await this.prisma.appointment.findUnique({
-      where: { id }
-    })
-
-    if (!scheduledappointment) {
-      throw new NotFoundException('Serviço não encontrado')
-    }
+  async update(user: AuthUser, id: string, dto: UpdateAppointmentDto) {
+    const scheduledappointment = await this.findOwned(user, id)
 
     const isReschedule = dto.scheduledAt || dto.barberId || dto.serviceId
 
@@ -148,15 +163,8 @@ export class AppointmentsService {
 
   }
 
-  async remove (id: string) {
-    
-     const scheduledappointment = await this.prisma.appointment.findUnique({
-      where: { id }
-    })
-
-    if(!scheduledappointment){
-      throw new NotFoundException('Serviço não existente')
-    }
+  async remove (user: AuthUser, id: string) {
+    await this.findOwned(user, id)
 
     await this.prisma.appointment.delete({
       where:{id}
