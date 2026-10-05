@@ -31,34 +31,46 @@ describe('Services (e2e)', () => {
     await app.close();
   });
 
-  async function getBarberToken() {
+  async function getToken(role: 'CLIENT' | 'BARBER' | 'ADMIN', email: string) {
     const hashedPassword = await bcrypt.hash('123456', 8);
     await prisma.user.create({
-      data: {
-        name: 'Barbeiro',
-        email: 'barbeiro.teste@example.com',
-        password: hashedPassword,
-        role: 'BARBER',
-      },
+      data: { name: role, email, password: hashedPassword, role },
     });
 
-    const barberLogin = await request(app.getHttpServer()).post('/auth/login').send({
-      email: 'barbeiro.teste@example.com',
+    const loginResponse = await request(app.getHttpServer()).post('/auth/login').send({
+      email,
       password: '123456',
     });
 
-    return barberLogin.body.accessToken;
+    return loginResponse.body.accessToken as string;
   }
+
+  const getBarberToken = () => getToken('BARBER', 'barbeiro.teste@example.com');
+  const getClientToken = () => getToken('CLIENT', 'cliente.teste@example.com');
+
+  async function createService(accessToken: string, name = 'Corte simples') {
+    const response = await request(app.getHttpServer())
+      .post('/services')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ name, price: 20, durationMinutes: 30 });
+
+    return response.body.id as string;
+  }
+
+  test('[POST] /services -CLIENT - acesso negado', async () => {
+    const clientToken = await getClientToken();
+
+    const response = await request(app.getHttpServer())
+      .post('/services')
+      .set('Authorization', `Bearer ${clientToken}`)
+      .send({ name: 'Corte simples', price: 20, durationMinutes: 30 });
+
+    expect(response.statusCode).toBe(403);
+  });
 
   test('[PATCH] /services -com token', async () => {
     const accessToken = await getBarberToken();
-
-    const createResponse = await request(app.getHttpServer())
-      .post('/services')
-      .set('Authorization', `Bearer ${accessToken}`)
-      .send({ name: 'Corte simples', price: 20, durationMinutes: 30 });
-
-    const serviceId = createResponse.body.id;
+    const serviceId = await createService(accessToken);
 
     const response = await request(app.getHttpServer())
       .patch(`/services/${serviceId}`)
@@ -69,15 +81,22 @@ describe('Services (e2e)', () => {
     expect(response.body.name).toBe('Corte americano');
   });
 
+  test('[PATCH] /services -CLIENT - acesso negado', async () => {
+    const barberToken = await getBarberToken();
+    const clientToken = await getClientToken();
+    const serviceId = await createService(barberToken);
+
+    const response = await request(app.getHttpServer())
+      .patch(`/services/${serviceId}`)
+      .set('Authorization', `Bearer ${clientToken}`)
+      .send({ name: 'Corte na maxima' });
+
+    expect(response.statusCode).toBe(403);
+  });
+
   test('[GET] /services/:id -com token', async () => {
     const accessToken = await getBarberToken();
-
-    const createResponse = await request(app.getHttpServer())
-      .post('/services')
-      .set('Authorization', `Bearer ${accessToken}`)
-      .send({ name: 'Corte simples', price: 20, durationMinutes: 30 });
-
-    const serviceId = createResponse.body.id;
+    const serviceId = await createService(accessToken);
 
     const response = await request(app.getHttpServer())
       .get(`/services/${serviceId}`)
@@ -85,6 +104,7 @@ describe('Services (e2e)', () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.body.name).toBe('Corte simples');
+    expect(response.body.active).toBe(true);
   });
 
   test('[GET] /services/:id -com token - id inexistente', async () => {
@@ -97,26 +117,109 @@ describe('Services (e2e)', () => {
     expect(response.statusCode).toBe(404);
   });
 
-  test('[DELETE] /services -com token', async () => {
+  test('[DELETE] /services/:id -não existe mais, serviço é desativado e não apagado', async () => {
     const accessToken = await getBarberToken();
-
-    const createResponse = await request(app.getHttpServer())
-      .post('/services')
-      .set('Authorization', `Bearer ${accessToken}`)
-      .send({ name: 'Corte simples', price: 20, durationMinutes: 30 });
-
-    const serviceId = createResponse.body.id;
+    const serviceId = await createService(accessToken);
 
     const response = await request(app.getHttpServer())
       .delete(`/services/${serviceId}`)
       .set('Authorization', `Bearer ${accessToken}`);
 
-    expect(response.statusCode).toBe(204);
+    expect(response.statusCode).toBe(404);
 
-    const findAfterDelete = await request(app.getHttpServer())
-      .get('/services')
+    const stillThere = await request(app.getHttpServer())
+      .get(`/services/${serviceId}`)
       .set('Authorization', `Bearer ${accessToken}`);
 
-    expect(findAfterDelete.body.data).toEqual([]);
+    expect(stillThere.statusCode).toBe(200);
+  });
+
+  test('[PATCH] /services/:id -desativa e reativa o serviço', async () => {
+    const accessToken = await getBarberToken();
+    const serviceId = await createService(accessToken);
+
+    const deactivate = await request(app.getHttpServer())
+      .patch(`/services/${serviceId}`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ active: false });
+
+    expect(deactivate.statusCode).toBe(200);
+    expect(deactivate.body.active).toBe(false);
+
+    const reactivate = await request(app.getHttpServer())
+      .patch(`/services/${serviceId}`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ active: true });
+
+    expect(reactivate.statusCode).toBe(200);
+    expect(reactivate.body.active).toBe(true);
+  });
+
+  test('[GET] /services -CLIENT vê só os ativos; BARBER vê todos', async () => {
+    const barberToken = await getBarberToken();
+    const clientToken = await getClientToken();
+
+    await createService(barberToken, 'Corte simples');
+    const inactiveId = await createService(barberToken, 'Corte antigo');
+
+    await request(app.getHttpServer())
+      .patch(`/services/${inactiveId}`)
+      .set('Authorization', `Bearer ${barberToken}`)
+      .send({ active: false });
+
+    const clientList = await request(app.getHttpServer())
+      .get('/services')
+      .set('Authorization', `Bearer ${clientToken}`);
+
+    expect(clientList.statusCode).toBe(200);
+    expect(clientList.body.total).toBe(1);
+    expect(clientList.body.data[0].name).toBe('Corte simples');
+
+    const barberList = await request(app.getHttpServer())
+      .get('/services')
+      .set('Authorization', `Bearer ${barberToken}`);
+
+    expect(barberList.body.total).toBe(2);
+  });
+
+  test('[GET] /services/:id -serviço desativado: CLIENT recebe 404, BARBER consulta normalmente', async () => {
+    const barberToken = await getBarberToken();
+    const clientToken = await getClientToken();
+    const serviceId = await createService(barberToken);
+
+    await request(app.getHttpServer())
+      .patch(`/services/${serviceId}`)
+      .set('Authorization', `Bearer ${barberToken}`)
+      .send({ active: false });
+
+    const asClient = await request(app.getHttpServer())
+      .get(`/services/${serviceId}`)
+      .set('Authorization', `Bearer ${clientToken}`);
+
+    expect(asClient.statusCode).toBe(404);
+
+    const asBarber = await request(app.getHttpServer())
+      .get(`/services/${serviceId}`)
+      .set('Authorization', `Bearer ${barberToken}`);
+
+    expect(asBarber.statusCode).toBe(200);
+  });
+
+  test('[POST] /services -nome de um serviço desativado - conflito', async () => {
+    const accessToken = await getBarberToken();
+    const serviceId = await createService(accessToken);
+
+    await request(app.getHttpServer())
+      .patch(`/services/${serviceId}`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ active: false });
+
+    const response = await request(app.getHttpServer())
+      .post('/services')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ name: 'Corte simples', price: 20, durationMinutes: 30 });
+
+    expect(response.statusCode).toBe(409);
+    expect(response.body.message).toContain('desativado');
   });
 });

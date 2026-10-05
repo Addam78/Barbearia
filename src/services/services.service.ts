@@ -2,10 +2,16 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreateServiceDto } from './dto/create-service.dto.js';
 import { UpdateServiceDto } from './dto/update-service.dto.js';
+import type { AuthUser } from '../auth/decorators/current-user.decorator.js';
 
 @Injectable()
 export class ServicesService {
     constructor(private prisma:PrismaService){}
+
+    // O cliente só enxerga serviços ativos; ADMIN e BARBER enxergam todos.
+    private scopeFor(user: AuthUser) {
+        return user.role === 'CLIENT' ? { active: true } : {}
+    }
 
     async createService(dto:CreateServiceDto){
 
@@ -14,7 +20,11 @@ export class ServicesService {
         })
 
         if (findName) {
-            throw new ConflictException('Serviço ja cadastrado')
+            throw new ConflictException(
+                findName.active === false
+                    ? 'Serviço já cadastrado e está desativado. Reative-o em vez de criar outro.'
+                    : 'Serviço ja cadastrado',
+            )
         }
 
         const create = await this.prisma.service.create({
@@ -26,16 +36,19 @@ export class ServicesService {
         })
 
         return create
-        
+
     }
 
-    async findAll(page = 1, limit = 10) {
+    async findAll(user: AuthUser, page = 1, limit = 10) {
+        const where = this.scopeFor(user)
+
         const [data, total] = await Promise.all([
             this.prisma.service.findMany({
+                where,
                 skip: (page - 1) * limit,
                 take: limit,
             }),
-            this.prisma.service.count(),
+            this.prisma.service.count({ where }),
         ])
 
         return {
@@ -47,9 +60,9 @@ export class ServicesService {
         }
     }
 
-    async findOne(id:string){
-        const result = await this.prisma.service.findUnique({
-            where :{id}
+    async findOne(user: AuthUser, id:string){
+        const result = await this.prisma.service.findFirst({
+            where: { id, ...this.scopeFor(user) }
         })
 
         if(!result){
@@ -71,23 +84,5 @@ export class ServicesService {
             where:{id},
             data:dto
         })
-    } 
-    
-    async deleteService(id:string){
-        const service = await this.prisma.service.findUnique({
-            where : {id}
-        })
-
-        if(!service){
-            throw new NotFoundException('Serviço não existente')
-        }
-
-        return this.prisma.service.delete({
-            where : {id}
-        })
-
-        
     }
 }
-
-    

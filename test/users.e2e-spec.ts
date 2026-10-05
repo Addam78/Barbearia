@@ -31,101 +31,109 @@ describe('Users (e2e)', () => {
     await app.close();
   });
 
+  async function createUser(role: 'CLIENT' | 'BARBER' | 'ADMIN', email: string) {
+    const hashedPassword = await bcrypt.hash('123456', 8);
+    const user = await prisma.user.create({
+      data: { name: role, email, password: hashedPassword, role },
+    });
+
+    const loginResponse = await request(app.getHttpServer()).post('/auth/login').send({
+      email,
+      password: '123456',
+    });
+
+    return { id: user.id, accessToken: loginResponse.body.accessToken as string };
+  }
+
   test('[GET] /users - sem token', async () => {
     const response = await request(app.getHttpServer()).get('/users');
 
     expect(response.statusCode).toBe(401);
   });
 
-  test('[GET] /users -com token', async () => {
-    const registerResponse = await request(app.getHttpServer()).post('/auth/register').send({
-      name: 'Barbeiro',
-      email: 'barbeiro.teste@example.com',
-      password: '123456',
-      role: 'BARBER',
-    });
-
-    const loginResponse = await request(app.getHttpServer()).post('/auth/login').send({
-      email: 'barbeiro.teste@example.com',
-      password: '123456',
-    });
-
-    const { accessToken } = loginResponse.body;
+  test('[GET] /users -com token de BARBER', async () => {
+    const barber = await createUser('BARBER', 'barbeiro.teste@example.com');
 
     const response = await request(app.getHttpServer())
       .get('/users')
-      .set('Authorization', `Bearer ${accessToken}`);
+      .set('Authorization', `Bearer ${barber.accessToken}`);
 
     expect(response.statusCode).toBe(200);
     expect(response.body.data).toHaveLength(1);
-    expect(response.body.data[0].id).toBe(registerResponse.body.id);
+    expect(response.body.data[0].id).toBe(barber.id);
   });
 
-  test('[GET] /users/:id -com token', async () => {
-    const registerResponse = await request(app.getHttpServer()).post('/auth/register').send({
-      name: 'Barbeiro',
-      email: 'barbeiro.teste@example.com',
-      password: '123456',
-      role: 'BARBER',
-    });
-
-    const loginResponse = await request(app.getHttpServer()).post('/auth/login').send({
-      email: 'barbeiro.teste@example.com',
-      password: '123456',
-    });
-
-    const { accessToken } = loginResponse.body;
-    const userId = registerResponse.body.id;
+  test('[GET] /users -com token de ADMIN', async () => {
+    const admin = await createUser('ADMIN', 'admin.teste@example.com');
 
     const response = await request(app.getHttpServer())
-      .get(`/users/${userId}`)
-      .set('Authorization', `Bearer ${accessToken}`);
+      .get('/users')
+      .set('Authorization', `Bearer ${admin.accessToken}`);
 
     expect(response.statusCode).toBe(200);
-    expect(response.body.email).toBe('barbeiro.teste@example.com');
+    expect(response.body.data[0].password).toBeUndefined();
+  });
+
+  test('[GET] /users -com token de CLIENT - acesso negado', async () => {
+    const client = await createUser('CLIENT', 'cliente.teste@example.com');
+
+    const response = await request(app.getHttpServer())
+      .get('/users')
+      .set('Authorization', `Bearer ${client.accessToken}`);
+
+    expect(response.statusCode).toBe(403);
+  });
+
+  test('[GET] /users/:id -CLIENT consulta a própria conta', async () => {
+    const client = await createUser('CLIENT', 'cliente.teste@example.com');
+
+    const response = await request(app.getHttpServer())
+      .get(`/users/${client.id}`)
+      .set('Authorization', `Bearer ${client.accessToken}`);
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.email).toBe('cliente.teste@example.com');
+  });
+
+  test('[GET] /users/:id -CLIENT não consulta outro usuário', async () => {
+    const client = await createUser('CLIENT', 'cliente.teste@example.com');
+    const barber = await createUser('BARBER', 'barbeiro.teste@example.com');
+
+    const response = await request(app.getHttpServer())
+      .get(`/users/${barber.id}`)
+      .set('Authorization', `Bearer ${client.accessToken}`);
+
+    expect(response.statusCode).toBe(403);
+  });
+
+  test('[GET] /users/:id -BARBER consulta outro usuário', async () => {
+    const barber = await createUser('BARBER', 'barbeiro.teste@example.com');
+    const client = await createUser('CLIENT', 'cliente.teste@example.com');
+
+    const response = await request(app.getHttpServer())
+      .get(`/users/${client.id}`)
+      .set('Authorization', `Bearer ${barber.accessToken}`);
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.email).toBe('cliente.teste@example.com');
   });
 
   test('[GET] /users/:id -com token - id inexistente', async () => {
-    await request(app.getHttpServer()).post('/auth/register').send({
-      name: 'Barbeiro',
-      email: 'barbeiro.teste@example.com',
-      password: '123456',
-      role: 'BARBER',
-    });
-
-    const loginResponse = await request(app.getHttpServer()).post('/auth/login').send({
-      email: 'barbeiro.teste@example.com',
-      password: '123456',
-    });
-
-    const { accessToken } = loginResponse.body;
+    const admin = await createUser('ADMIN', 'admin.teste@example.com');
 
     const response = await request(app.getHttpServer())
       .get('/users/00000000-0000-0000-0000-000000000000')
-      .set('Authorization', `Bearer ${accessToken}`);
+      .set('Authorization', `Bearer ${admin.accessToken}`);
 
     expect(response.statusCode).toBe(404);
   });
 
   test('[PATCH] /users/:id -com token', async () => {
-    const registerResponse = await request(app.getHttpServer()).post('/auth/register').send({
-      name: 'Barbeiro',
-      email: 'barbeiro.teste@example.com',
-      password: '123456',
-      role: 'BARBER',
-    });
-
-    const loginResponse = await request(app.getHttpServer()).post('/auth/login').send({
-      email: 'barbeiro.teste@example.com',
-      password: '123456',
-    });
-
-    const { accessToken } = loginResponse.body;
-    const userId = registerResponse.body.id;
+    const barber = await createUser('BARBER', 'barbeiro.teste@example.com');
 
     const response = await request(app.getHttpServer())
-      .patch(`/users/${userId}`)
-      .set('Authorization', `Bearer ${accessToken}`)
+      .patch(`/users/${barber.id}`)
+      .set('Authorization', `Bearer ${barber.accessToken}`)
       .send({ name: 'Barbeiro Editado' });
 
     expect(response.statusCode).toBe(200);
@@ -133,55 +141,27 @@ describe('Users (e2e)', () => {
   });
 
   test('[DELETE] /users/:id -com token', async () => {
-    const registerResponse = await request(app.getHttpServer()).post('/auth/register').send({
-      name: 'Barbeiro',
-      email: 'barbeiro.teste@example.com',
-      password: '123456',
-      role: 'BARBER',
-    });
-
-    const loginResponse = await request(app.getHttpServer()).post('/auth/login').send({
-      email: 'barbeiro.teste@example.com',
-      password: '123456',
-    });
-
-    const { accessToken } = loginResponse.body;
-    const userId = registerResponse.body.id;
+    const barber = await createUser('BARBER', 'barbeiro.teste@example.com');
 
     const response = await request(app.getHttpServer())
-      .delete(`/users/${userId}`)
-      .set('Authorization', `Bearer ${accessToken}`);
+      .delete(`/users/${barber.id}`)
+      .set('Authorization', `Bearer ${barber.accessToken}`);
 
     expect(response.statusCode).toBe(200);
 
     const findAfterDelete = await request(app.getHttpServer())
-      .get(`/users/${userId}`)
-      .set('Authorization', `Bearer ${accessToken}`);
+      .get(`/users/${barber.id}`)
+      .set('Authorization', `Bearer ${barber.accessToken}`);
 
     expect(findAfterDelete.statusCode).toBe(404);
   });
 
   test('[POST] /users -com token de ADMIN - cria barbeiro', async () => {
-    const hashedPassword = await bcrypt.hash('123456', 8);
-    await prisma.user.create({
-      data: {
-        name: 'Admin',
-        email: 'admin.teste@example.com',
-        password: hashedPassword,
-        role: 'ADMIN',
-      },
-    });
-
-    const loginResponse = await request(app.getHttpServer()).post('/auth/login').send({
-      email: 'admin.teste@example.com',
-      password: '123456',
-    });
-
-    const { accessToken } = loginResponse.body;
+    const admin = await createUser('ADMIN', 'admin.teste@example.com');
 
     const response = await request(app.getHttpServer())
       .post('/users')
-      .set('Authorization', `Bearer ${accessToken}`)
+      .set('Authorization', `Bearer ${admin.accessToken}`)
       .send({
         name: 'Barbeiro Novo',
         email: 'barbeiro.novo@example.com',
@@ -194,23 +174,11 @@ describe('Users (e2e)', () => {
   });
 
   test('[POST] /users -com token de CLIENT - acesso negado', async () => {
-    await request(app.getHttpServer()).post('/auth/register').send({
-      name: 'Cliente',
-      email: 'cliente.teste@example.com',
-      password: '123456',
-      role: 'CLIENT',
-    });
-
-    const loginResponse = await request(app.getHttpServer()).post('/auth/login').send({
-      email: 'cliente.teste@example.com',
-      password: '123456',
-    });
-
-    const { accessToken } = loginResponse.body;
+    const client = await createUser('CLIENT', 'cliente.teste@example.com');
 
     const response = await request(app.getHttpServer())
       .post('/users')
-      .set('Authorization', `Bearer ${accessToken}`)
+      .set('Authorization', `Bearer ${client.accessToken}`)
       .send({
         name: 'Barbeiro Novo',
         email: 'barbeiro.novo@example.com',

@@ -17,9 +17,9 @@ API de agendamento para barbearia, construída como projeto de estudo com foco e
 
 | Perfil | Serviços | Agendamentos | Usuários |
 |---|---|---|---|
-| `CLIENT` | consulta | cria e gerencia os próprios | edita/remove a própria conta |
-| `BARBER` | consulta, cria, edita e remove | gerencia a própria agenda | edita/remove a própria conta |
-| `ADMIN` | consulta, cria, edita e remove | vê e gerencia todos | cria usuários (por convite) e gerencia qualquer conta |
+| `CLIENT` | consulta só os ativos | cria e gerencia os próprios | consulta, edita e remove só a própria conta |
+| `BARBER` | consulta todos, cria, edita e desativa | gerencia a própria agenda | consulta qualquer usuário; edita e remove só a própria conta |
+| `ADMIN` | consulta todos, cria, edita e desativa | vê e gerencia todos | cria usuários (por convite) e gerencia qualquer conta |
 
 ### Como um barbeiro entra no sistema
 
@@ -35,6 +35,7 @@ API de agendamento para barbearia, construída como projeto de estudo com foco e
 - **Processamento assíncrono com RabbitMQ.** Criar um usuário não espera o envio do e-mail: a API publica `user.created` e um worker cuida do convite. Falhas vão para uma *dead-letter queue*, em vez de se perderem ou derrubarem a requisição. A publicação ainda não é transacional com o banco (veja o roadmap).
 - **Convite de uso único e atômico.** O token é aleatório e é "reservado" (`PENDING` → `USED`) na mesma transação que grava a senha, então duas requisições com o mesmo token não conseguem usá-lo ao mesmo tempo. Nenhuma senha viaja por e-mail.
 - **Controle de acesso em camadas.** Guards globais exigem JWT em tudo, exceto nas rotas públicas, e checam o perfil por rota. Nos agendamentos, a consulta é filtrada pelo dono, e o recurso de outra pessoa responde 404 em vez de 403, para não revelar que o id existe.
+- **Serviços são desativados, não apagados.** Um serviço tem o campo `active`: desativá-lo o tira da lista do cliente e bloqueia novos agendamentos, mas os agendamentos antigos continuam apontando para ele. Apagar quebraria o histórico, e o banco nem permitiria remover um serviço já usado.
 - **Idempotência (parcial).** O consumo do convite é idempotente por construção (uso único). Uma chave de idempotência nas criações, para suportar retries de rede, está no roadmap.
 - **Logs estruturados.** Pino, com token e senha mascarados para nunca aparecerem no log.
 - **Sem cache (por enquanto).** O volume e o padrão de acesso não justificam a complexidade de invalidação neste estágio; será revisitado se houver gargalo real de leitura.

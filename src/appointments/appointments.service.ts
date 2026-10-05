@@ -2,11 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { CreateAppointmentDto } from './dto/create-appointment.dto.js';
 import { UpdateAppointmentDto } from './dto/update-appointment.dto.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-
-export interface AuthUser {
-  userId: string;
-  role: string;
-}
+import type { AuthUser } from '../auth/decorators/current-user.decorator.js';
 
 @Injectable()
 export class AppointmentsService {
@@ -46,6 +42,10 @@ export class AppointmentsService {
 
     if(!findService){
       throw new NotFoundException('Serviço não existe ')
+    }
+
+    if (!findService.active) {
+      throw new BadRequestException('Serviço desativado')
     }
 
     //findService.durationMinutes --> é  tempo do corte
@@ -130,6 +130,11 @@ export class AppointmentsService {
 
     if (!findService) {
       throw new NotFoundException('Serviço não existe')
+    }
+
+    // Trocar para um serviço desativado não pode; remarcar um agendamento que já usa um serviço desativado pode.
+    if (dto.serviceId && !findService.active) {
+      throw new BadRequestException('Serviço desativado')
     }
 
     const startsAt = dto.scheduledAt ? new Date(dto.scheduledAt) : scheduledappointment.scheduledAt

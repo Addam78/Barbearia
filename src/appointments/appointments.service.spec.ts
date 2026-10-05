@@ -62,6 +62,7 @@ describe('AppointmentsService', () => {
       id: 'service-1',
       name: 'Corte simples',
       durationMinutes: 30,
+      active: true,
     } as any)
 
     // 2. dto de exemplo
@@ -98,6 +99,7 @@ describe('AppointmentsService', () => {
       vi.mocked(prisma.service.findUnique).mockResolvedValue({
         id: 'service-1',
         durationMinutes: 30,
+        active: true,
       } as any)
 
       vi.mocked(tx.appointment.create).mockResolvedValue({ id: 'appointment-1' } as any)
@@ -123,6 +125,7 @@ describe('AppointmentsService', () => {
       vi.mocked(prisma.service.findUnique).mockResolvedValue({
         id: 'service-1',
         durationMinutes: 30,
+        active: true,
       } as any)
 
       vi.mocked(tx.appointment.create).mockResolvedValue({ id: 'appointment-1' } as any)
@@ -165,10 +168,29 @@ describe('AppointmentsService', () => {
       await expect(service.create(barber, dto)).rejects.toThrow(NotFoundException)
     })
 
+    it('Deve lançar BadRequestException se o serviço estiver desativado', async () => {
+      vi.mocked(prisma.service.findUnique).mockResolvedValue({
+        id: 'service-1',
+        durationMinutes: 30,
+        active: false,
+      } as any)
+
+      await expect(
+        service.create(client, {
+          barberId: 'barber-1',
+          serviceId: 'service-1',
+          scheduledAt: '2026-09-25T09:00:00.000Z',
+        }),
+      ).rejects.toThrow(BadRequestException)
+
+      expect(tx.appointment.create).not.toHaveBeenCalled()
+    })
+
     it('Deve lançar ConflictException se o barbeiro já tiver um agendamento no horário', async () => {
       vi.mocked(prisma.service.findUnique).mockResolvedValue({
         id: 'service-1',
         durationMinutes: 30,
+        active: true,
       } as any)
 
       vi.mocked(tx.appointment.findMany).mockResolvedValue([
@@ -346,6 +368,50 @@ describe('AppointmentsService', () => {
         id: 'appointment-1',
         scheduledAt: new Date('2026-09-25T10:00:00.000Z'),
       })
+    })
+
+    it('Não permite trocar o agendamento para um serviço desativado', async () => {
+      vi.mocked(prisma.appointment.findFirst).mockResolvedValue({
+        id: 'appointment-1',
+        barberId: 'barber-1',
+        serviceId: 'service-1',
+        scheduledAt: new Date('2026-09-25T09:00:00.000Z'),
+      } as any)
+
+      vi.mocked(prisma.service.findUnique).mockResolvedValue({
+        id: 'service-2',
+        durationMinutes: 30,
+        active: false,
+      } as any)
+
+      await expect(
+        service.update(admin, 'appointment-1', { serviceId: 'service-2' } as any),
+      ).rejects.toThrow(BadRequestException)
+
+      expect(tx.appointment.update).not.toHaveBeenCalled()
+    })
+
+    it('Permite remarcar o horário de um agendamento cujo serviço foi desativado depois', async () => {
+      vi.mocked(prisma.appointment.findFirst).mockResolvedValue({
+        id: 'appointment-1',
+        barberId: 'barber-1',
+        serviceId: 'service-1',
+        scheduledAt: new Date('2026-09-25T09:00:00.000Z'),
+      } as any)
+
+      vi.mocked(prisma.service.findUnique).mockResolvedValue({
+        id: 'service-1',
+        durationMinutes: 30,
+        active: false,
+      } as any)
+
+      vi.mocked(tx.appointment.update).mockResolvedValue({ id: 'appointment-1' } as any)
+
+      await service.update(admin, 'appointment-1', {
+        scheduledAt: '2026-09-25T10:00:00.000Z',
+      } as any)
+
+      expect(tx.appointment.update).toHaveBeenCalledTimes(1)
     })
 
     it('Deve lançar ConflictException ao reagendar para um horário ocupado', async () => {

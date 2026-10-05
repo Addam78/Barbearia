@@ -38,9 +38,11 @@ Só \`/auth/register\`, \`/auth/login\` e \`/auth/accept-invite\` são públicas
 
 | Perfil | O que pode fazer |
 |---|---|
-| \`CLIENT\` | Ver serviços e gerenciar **os próprios** agendamentos |
-| \`BARBER\` | Ver serviços, criar/editar/remover serviços e gerenciar **a própria agenda** |
+| \`CLIENT\` | Ver os serviços **ativos**, gerenciar **os próprios** agendamentos e consultar/editar a própria conta |
+| \`BARBER\` | Ver todos os serviços, criar/editar/**desativar** serviços, consultar usuários e gerenciar **a própria agenda** |
 | \`ADMIN\` | Tudo, incluindo criar usuários e ver todos os agendamentos |
+
+Serviços **não são apagados**: para tirar um serviço de circulação ele é desativado (\`PATCH /services/{id}\` com \`{ "active": false }\`), o que preserva o histórico dos agendamentos antigos.
 
 ## Dois jeitos de criar um usuário
 

@@ -46,7 +46,9 @@ model Service {
   name            String  @unique
   price           Decimal @db.Decimal(10, 2)
   durationMinutes Int
- 
+  // Serviços não são apagados: desativar preserva o histórico dos agendamentos.
+  active          Boolean @default(true)
+
   appointments Appointment[]
  
   createdAt DateTime @default(now())

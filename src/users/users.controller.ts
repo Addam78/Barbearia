@@ -5,6 +5,7 @@ import { CreateUserDto } from './dto/create-user.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
+import type { AuthUser } from '../auth/decorators/current-user.decorator.js';
 
 @ApiBearerAuth()
 @Controller('users')
@@ -15,8 +16,9 @@ export class UsersController {
   @ApiOperation({
     summary: 'Listar usuários',
     description:
-      'Lista paginada de usuários (`?page=1&limit=10`). Qualquer usuário logado pode consultar. A senha nunca é retornada.',
+      'Lista paginada de usuários (`?page=1&limit=10`). Só `ADMIN` e `BARBER`: o `CLIENT` recebe 403. A senha nunca é retornada.',
   })
+  @Roles('ADMIN', 'BARBER')
   @Get()
   findAll(@Query('page') page?:string, @Query('limit') limit?:string) {
     return this.usersService.findAll(Number(page) || 1, Number(limit) || 10);
@@ -24,10 +26,14 @@ export class UsersController {
 
   @ApiOperation({
     summary: 'Buscar usuário por id',
-    description: 'Qualquer usuário logado pode consultar. Retorna 404 se o id não existir.',
+    description:
+      '`ADMIN` e `BARBER` consultam qualquer usuário; o `CLIENT` só consulta a própria conta (nos demais ids recebe 403). Retorna 404 se o id não existir.',
   })
   @Get(':id')
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id') id: string, @CurrentUser() currentUser: AuthUser) {
+    if (currentUser.role === 'CLIENT' && currentUser.userId !== id) {
+      throw new ForbiddenException('Você só pode consultar a própria conta');
+    }
     return this.usersService.findOne(id);
   }
 

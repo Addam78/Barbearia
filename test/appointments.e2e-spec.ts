@@ -184,6 +184,41 @@ describe('Appointments (e2e)', () => {
     expect(findAfterDelete.statusCode).toBe(404);
   });
 
+  test('[POST] /appointments -serviço desativado - 400, e os agendamentos antigos continuam', async () => {
+    const { accessToken, barberId } = await getBarber();
+    const clientId = await getClient();
+
+    const serviceResponse = await request(app.getHttpServer())
+      .post('/services')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ name: 'Corte simples', price: 20, durationMinutes: 30 });
+
+    const serviceId = serviceResponse.body.id;
+
+    const oldAppointment = await request(app.getHttpServer())
+      .post('/appointments')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ clientId, barberId, serviceId, scheduledAt: '2026-09-25T09:00:00.000Z' });
+
+    await request(app.getHttpServer())
+      .patch(`/services/${serviceId}`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ active: false });
+
+    const newAppointment = await request(app.getHttpServer())
+      .post('/appointments')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ clientId, barberId, serviceId, scheduledAt: '2026-09-25T10:00:00.000Z' });
+
+    expect(newAppointment.statusCode).toBe(400);
+
+    const stillThere = await request(app.getHttpServer())
+      .get(`/appointments/${oldAppointment.body.id}`)
+      .set('Authorization', `Bearer ${accessToken}`);
+
+    expect(stillThere.statusCode).toBe(200);
+  });
+
   describe('controle de acesso do CLIENT', () => {
     async function registerClient(email: string) {
       const registerResponse = await request(app.getHttpServer())

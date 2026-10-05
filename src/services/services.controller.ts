@@ -1,9 +1,11 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { ServicesService } from './services.service.js';
 import { CreateServiceDto } from './dto/create-service.dto.js';
 import { UpdateServiceDto } from './dto/update-service.dto.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
+import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
+import type { AuthUser } from '../auth/decorators/current-user.decorator.js';
 
 
 @ApiBearerAuth()
@@ -14,7 +16,7 @@ export class ServicesController {
     @ApiOperation({
         summary: 'Criar serviço',
         description:
-            'Cadastra um serviço da barbearia (corte, barba etc.) com nome, preço e duração em minutos. Só `ADMIN` ou `BARBER`. O nome é único: retorna 409 se já existir.',
+            'Cadastra um serviço da barbearia (corte, barba etc.) com nome, preço e duração em minutos. Só `ADMIN` ou `BARBER`. O nome é único: retorna 409 se já existir (inclusive se o serviço existente estiver desativado).',
     })
     @Roles('ADMIN', 'BARBER')
     @Post()
@@ -25,40 +27,30 @@ export class ServicesController {
     @ApiOperation({
         summary: 'Listar serviços',
         description:
-            'Lista paginada de serviços (`?page=1&limit=10`). Qualquer usuário logado pode consultar; é o que o cliente usa para escolher o serviço ao agendar.',
+            'Lista paginada de serviços (`?page=1&limit=10`). O `CLIENT` vê só os serviços **ativos**, que é o que ele usa para escolher ao agendar; `ADMIN` e `BARBER` veem todos, inclusive os desativados (campo `active`).',
     })
     @Get()
-    findAll(@Query('page') page?:string, @Query('limit') limit?:string){
-        return this.servicesService.findAll(Number(page) || 1,Number(limit) || 10)
+    findAll(@CurrentUser() user: AuthUser, @Query('page') page?:string, @Query('limit') limit?:string){
+        return this.servicesService.findAll(user, Number(page) || 1,Number(limit) || 10)
     }
 
     @ApiOperation({
         summary: 'Buscar serviço por id',
-        description: 'Qualquer usuário logado pode consultar. Retorna 404 se o id não existir.',
+        description: 'Qualquer usuário logado pode consultar. Para o `CLIENT`, um serviço desativado responde 404. Retorna 404 se o id não existir.',
     })
     @Get(':id')
-    findOne(@Param('id') id:string){
-        return this.servicesService.findOne(id)
+    findOne(@CurrentUser() user: AuthUser, @Param('id') id:string){
+        return this.servicesService.findOne(user, id)
     }
 
     @ApiOperation({
-        summary: 'Editar serviço',
-        description: 'Altera nome, preço e/ou duração. Só `ADMIN` ou `BARBER`. Retorna 404 se o id não existir.',
+        summary: 'Editar ou desativar serviço',
+        description:
+            'Altera nome, preço, duração e/ou o campo `active`. Só `ADMIN` ou `BARBER`. **Serviços não são apagados, para manter o histórico dos agendamentos:** para tirá-lo de circulação, envie `{ "active": false }` (e `true` para reativar). Um serviço desativado some para o cliente e não aceita novos agendamentos, mas os agendamentos antigos continuam intactos. Retorna 404 se o id não existir.',
     })
     @Roles('ADMIN', 'BARBER')
     @Patch(':id')
     updateService(@Param('id') id:string, @Body() dto:UpdateServiceDto){
         return this.servicesService.updateService(id,dto)
-    }
-
-    @ApiOperation({
-        summary: 'Remover serviço',
-        description: 'Só `ADMIN` ou `BARBER`. Responde 204, sem corpo. Retorna 404 se o id não existir.',
-    })
-    @Roles('ADMIN', 'BARBER')
-    @Delete(':id')
-    @HttpCode(204)
-    deleteService(@Param('id')id:string){
-        return this.servicesService.deleteService(id)
     }
 }
