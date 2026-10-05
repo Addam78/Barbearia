@@ -1,18 +1,19 @@
 @import 'tailwindcss';
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&display=swap');
 
 :root {
-  --color-bg: #232323;
-  --color-panel: #1a1a1a;
-  --color-text: #f2f1ed;
-  --color-text-secondary: #cacaca;
-  --color-border: #383838;
-  --color-accent: #4ad66d;
-  --color-accent-contrast: #0d1f12;
-  --color-error: #ef6f6c;
+  --color-bg: #1c1714;
+  --color-panel: #241e19;
+  --color-text: #ede6db;
+  --color-text-secondary: #a89c8a;
+  --color-border: #3a322a;
+  --color-primary: #8c3a2b;
+  --color-primary-hover: #a3452f;
+  --color-accent: #c9a227;
+  --color-error: #b3443a;
 
-  --font-display: 'Fraunces', serif;
-  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
 * {
