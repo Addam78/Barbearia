@@ -28,4 +28,13 @@ export class MailService {
       html: `<p>Olá, ${name}!</p><p>Clique no link para definir sua senha: <a href="${link}">${link}</a></p>`,
     });
   }
+
+  async sendRegistrationConfirmationEmail(to: string, name: string) {
+    await this.transporter.sendMail({
+      from: this.config.get<string>('SMTP_USER'),
+      to,
+      subject: 'Cadastro confirmado — Barbearia',
+      html: `<p>Olá, ${name}!</p><p>Seu cadastro foi concluído com sucesso. Agora você já pode fazer login na plataforma.</p>`,
+    })
+  }
 }

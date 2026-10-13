@@ -34,6 +34,7 @@ API de agendamento para barbearia, construída como projeto de estudo com foco e
 - **Concorrência no agendamento.** Criar e reagendar rodam em transação com isolamento `Serializable`, que verifica a sobreposição de horários considerando a duração do serviço. Uma constraint única `(barbeiro, horário)` no banco serve de segunda barreira. Assim, duas requisições simultâneas não geram double-booking.
 - **Processamento assíncrono com RabbitMQ.** Criar um usuário não espera o envio do e-mail: a API publica `user.created` e um worker cuida do convite. Falhas vão para uma *dead-letter queue*, em vez de se perderem ou derrubarem a requisição. A publicação ainda não é transacional com o banco (veja o roadmap).
 - **Convite de uso único e atômico.** O token é aleatório e é "reservado" (`PENDING` → `USED`) na mesma transação que grava a senha, então duas requisições com o mesmo token não conseguem usá-lo ao mesmo tempo. Nenhuma senha viaja por e-mail.
+- **Convite sem expiração por tempo.** Decisão deliberada: o token só "morre" por uso (`PENDING` → `USED`), nunca por prazo. Prioriza não travar o acesso do barbeiro por um imprevisto (esqueceu, ficou doente) em vez de forçar reenvio manual. Se o cenário mudar (ex: exigência de segurança), reavaliar.
 - **Controle de acesso em camadas.** Guards globais exigem JWT em tudo, exceto nas rotas públicas, e checam o perfil por rota. Nos agendamentos, a consulta é filtrada pelo dono, e o recurso de outra pessoa responde 404 em vez de 403, para não revelar que o id existe.
 - **Serviços são desativados, não apagados.** Um serviço tem o campo `active`: desativá-lo o tira da lista do cliente e bloqueia novos agendamentos, mas os agendamentos antigos continuam apontando para ele. Apagar quebraria o histórico, e o banco nem permitiria remover um serviço já usado.
 - **Idempotência (parcial).** O consumo do convite é idempotente por construção (uso único). Uma chave de idempotência nas criações, para suportar retries de rede, está no roadmap.
@@ -71,7 +72,6 @@ test/               # testes e2e
 
 - [ ] Frontend: tela de aceitar convite (e o link do e-mail apontando para ela) e telas de agendamento
 - [ ] Padrão *transactional outbox*: garantir consistência entre gravar no banco e publicar o evento na fila
-- [ ] Expiração e reenvio de convites
 - [ ] Chave de idempotência nas criações (ex: `POST /appointments`)
 
 ## Licença

@@ -29,6 +29,8 @@ export class NotificationsConsumer {
     this.logger.log(`Processando user.created: ${payload.email}`);
 
     if (!payload.needsInvite) {
+
+       await this.mailService.sendRegistrationConfirmationEmail(payload.email, payload.name);
       return;
     }
 

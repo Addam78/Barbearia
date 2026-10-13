@@ -5,13 +5,15 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { RegisterDto } from './dto/register.dto.js';
 import { LoginDto } from './dto/login.dto.js';
 import { AcceptInviteDto } from './dto/accept-invite.dto.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
 
 
 @Injectable()
 export class AuthService {
   constructor(
     private prisma: PrismaService,
-    private jwtService: JwtService
+    private jwtService: JwtService,
+    private notifications:NotificationsService
   ){} 
 
 
@@ -33,6 +35,14 @@ export class AuthService {
         password: hashedPassword,
         role : 'CLIENT'
       } 
+    })
+
+    this.notifications.publishUserCreated({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      needsInvite: false,
     })
 
     return { id: user.id, name: user.name, email: user.email }
