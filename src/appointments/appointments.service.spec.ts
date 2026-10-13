@@ -12,6 +12,13 @@ describe('AppointmentsService', () => {
   const barber = { userId: 'barber-1', role: 'BARBER' }
   const client = { userId: 'client-1', role: 'CLIENT' }
 
+  // Espelha o `withNames` privado do AppointmentsService (include de nome em vez de só o id).
+  const withNames = {
+    client: { select: { id: true, name: true } },
+    barber: { select: { id: true, name: true } },
+    service: { select: { id: true, name: true } },
+  }
+
   beforeEach(async () => {
     tx = {
       appointment: {
@@ -237,7 +244,7 @@ describe('AppointmentsService', () => {
 
       await service.findAll(admin)
 
-      expect(prisma.appointment.findMany).toHaveBeenCalledWith({ where: {}, skip: 0, take: 10 })
+      expect(prisma.appointment.findMany).toHaveBeenCalledWith({ where: {}, skip: 0, take: 10, include: withNames })
       expect(prisma.appointment.count).toHaveBeenCalledWith({ where: {} })
     })
 
@@ -251,6 +258,7 @@ describe('AppointmentsService', () => {
         where: { barberId: 'barber-1' },
         skip: 0,
         take: 10,
+        include: withNames,
       })
       expect(prisma.appointment.count).toHaveBeenCalledWith({ where: { barberId: 'barber-1' } })
     })
@@ -265,6 +273,7 @@ describe('AppointmentsService', () => {
         where: { clientId: 'client-1' },
         skip: 0,
         take: 10,
+        include: withNames,
       })
       expect(prisma.appointment.count).toHaveBeenCalledWith({ where: { clientId: 'client-1' } })
     })
@@ -288,6 +297,7 @@ describe('AppointmentsService', () => {
 
       expect(prisma.appointment.findFirst).toHaveBeenCalledWith({
         where: { id: 'appointment-1', clientId: 'client-1' },
+        include: withNames,
       })
     })
 
@@ -316,6 +326,7 @@ describe('AppointmentsService', () => {
 
       expect(prisma.appointment.findFirst).toHaveBeenCalledWith({
         where: { id: 'appointment-de-outro', clientId: 'client-1' },
+        include: withNames,
       })
       expect(prisma.appointment.update).not.toHaveBeenCalled()
     })
@@ -339,6 +350,7 @@ describe('AppointmentsService', () => {
       expect(prisma.appointment.update).toHaveBeenCalledWith({
         where: { id: 'appointment-1' },
         data: { status: 'COMPLETED' },
+        include: withNames,
       })
     })
 

@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 
 import { AuthService } from './auth.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
 import { access } from 'fs';
 import * as bcrypt from 'bcryptjs';
 import { ConflictException, UnauthorizedException } from '@nestjs/common';
@@ -26,6 +27,12 @@ describe('AuthService', () => {
         findUnique: vi.fn(),
         updateMany: vi.fn(),
       },
+      refreshToken: {
+        create: vi.fn().mockResolvedValue({}),
+        findUnique: vi.fn(),
+        update: vi.fn(),
+        updateMany: vi.fn(),
+      },
     };
     prismaMock.$transaction = vi.fn((callback) => callback(prismaMock));
 
@@ -39,6 +46,10 @@ describe('AuthService', () => {
         {
           provide: JwtService,
           useValue: { sign: vi.fn().mockReturnValue('fake-token') },
+        },
+        {
+          provide: NotificationsService,
+          useValue: { publishUserCreated: vi.fn() },
         },
       ],
     }).compile();
@@ -106,8 +117,10 @@ describe('AuthService', () => {
         email: 'joao@example.com',
         password:'123456',
       } as any )
-      
-      expect(result).toEqual({accessToken:'fake-token'})
+
+      expect(result.accessToken).toBe('fake-token')
+      expect(typeof result.refreshToken).toBe('string')
+      expect(prisma.refreshToken.create).toHaveBeenCalledTimes(1)
     })
 
     it('deve lançar UnauthorizedException se o usuário não existir' ,async()=>{

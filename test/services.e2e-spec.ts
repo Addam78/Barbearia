@@ -24,6 +24,7 @@ describe('Services (e2e)', () => {
     await prisma.appointment.deleteMany();
     await prisma.service.deleteMany();
     await prisma.inviteToken.deleteMany();
+    await prisma.refreshToken.deleteMany();
     await prisma.user.deleteMany();
   });
 
