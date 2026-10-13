@@ -8,6 +8,13 @@ import type { AuthUser } from '../auth/decorators/current-user.decorator.js';
 export class AppointmentsService {
   constructor(private prisma:PrismaService){}
 
+  // Nomes em vez de só os ids — sem trazer o User/Service inteiro (evita vazar password hasheada).
+  private readonly withNames = {
+    client: { select: { id: true, name: true } },
+    barber: { select: { id: true, name: true } },
+    service: { select: { id: true, name: true } },
+  }
+
   // Filtro de visibilidade: ADMIN vê tudo, BARBER só a própria agenda, CLIENT só os próprios agendamentos.
   private scopeFor(user: AuthUser) {
     if (user.role === 'ADMIN') return {}
@@ -19,6 +26,7 @@ export class AppointmentsService {
   private async findOwned(user: AuthUser, id: string) {
     const appointment = await this.prisma.appointment.findFirst({
       where: { id, ...this.scopeFor(user) },
+      include: this.withNames,
     })
 
     if (!appointment) {
@@ -92,6 +100,7 @@ export class AppointmentsService {
         where,
         skip: (page - 1) * limit,
         take: limit,
+        include: this.withNames,
       }),
       this.prisma.appointment.count({ where }),
     ])
@@ -117,7 +126,8 @@ export class AppointmentsService {
     if (!isReschedule) {
       return this.prisma.appointment.update({
         where: { id },
-        data: { status: dto.status }
+        data: { status: dto.status },
+        include: this.withNames,
       })
     }
 
@@ -161,6 +171,7 @@ export class AppointmentsService {
         return tx.appointment.update({
           where: { id },
           data: { barberId, serviceId, scheduledAt: startsAt, status: dto.status },
+          include: this.withNames,
         })
       },
       { isolationLevel: 'Serializable' },

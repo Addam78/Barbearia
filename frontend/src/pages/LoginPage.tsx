@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mark } from '../components/Mark';
-import { ApiError, login } from '../lib/api';
+import { ApiError } from '../lib/api';
+import { defaultRouteFor, useAuth } from '../lib/auth';
 
 function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
@@ -9,6 +10,7 @@ function isValidEmail(value: string) {
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [emailError, setEmailError] = useState('');
@@ -29,9 +31,8 @@ export function LoginPage() {
 
     setIsSubmitting(true);
     try {
-      const { accessToken } = await login({ email, password });
-      localStorage.setItem('accessToken', accessToken);
-      navigate('/dashboard');
+      const role = await login(email, password);
+      navigate(defaultRouteFor(role));
     } catch (error) {
       setFormError(error instanceof ApiError ? error.message : 'Algo deu errado. Tente novamente.');
     } finally {
