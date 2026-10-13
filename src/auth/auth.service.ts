@@ -6,7 +6,8 @@ import { RegisterDto } from './dto/register.dto.js';
 import { LoginDto } from './dto/login.dto.js';
 import { AcceptInviteDto } from './dto/accept-invite.dto.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
-
+import { randomBytes, createHash } from 'crypto';
+import { RefreshTokenDto } from './dto/refresh-token.dto.js';
 
 @Injectable()
 export class AuthService {
@@ -64,10 +65,70 @@ export class AuthService {
       throw new UnauthorizedException('Credenciais invalidas')
     }
 
-    const accessToken = this.jwtService.sign({sub:user.id,role:user.role})
+    return this.generateTokens(user.id, user.role)
 
-    return {accessToken}
 
+  }
+
+
+    private hashToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
+  }
+
+  private async generateTokens(userId: string, role: string) {
+    const accessToken = this.jwtService.sign({ sub: userId, role });
+
+    const refreshToken = randomBytes(40).toString('hex');
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 dias
+
+    await this.prisma.refreshToken.create({
+      data: {
+        tokenHash: this.hashToken(refreshToken),
+        userId,
+        expiresAt,
+      },
+    });
+
+    return { accessToken, refreshToken };
+  }
+
+    async refresh(dto: RefreshTokenDto) {
+    const tokenHash = this.hashToken(dto.refreshToken);
+
+    const stored = await this.prisma.refreshToken.findUnique({
+      where: { tokenHash },
+    });
+
+    if (!stored || stored.revokedAt || stored.expiresAt < new Date()) {
+      throw new UnauthorizedException('Refresh token inválido ou expirado');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: stored.userId },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('Refresh token inválido ou expirado');
+    }
+
+    // Rotação: revoga o token usado e emite um par novo.
+    await this.prisma.refreshToken.update({
+      where: { id: stored.id },
+      data: { revokedAt: new Date() },
+    });
+
+    return this.generateTokens(user.id, user.role);
+  }
+
+  async logout(dto: RefreshTokenDto) {
+    const tokenHash = this.hashToken(dto.refreshToken);
+
+    await this.prisma.refreshToken.updateMany({
+      where: { tokenHash, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+
+    return { message: 'Logout realizado com sucesso' };
   }
   
   async acceptInvite(dto: AcceptInviteDto) {

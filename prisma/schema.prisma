@@ -34,6 +34,7 @@ model User {
   // Lado virtual — usado quando ESTE usuário aparece como o barbeiro de um agendamento.
   appointmentsAsBarber Appointment[] @relation("BarberAppointments")
   inviteTokens InviteToken[]
+  refreshTokens RefreshToken[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -103,4 +104,16 @@ model InviteToken {
   createdAt DateTime     @default(now())
 
   @@map("invite_tokens")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  tokenHash String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@map("refresh_tokens")
 }
