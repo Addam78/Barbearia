@@ -3,6 +3,7 @@ import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { MyAppointmentsPage } from './pages/MyAppointmentsPage';
+import { NewAppointmentPage } from './pages/NewAppointmentPage';
 import { ServicesPage } from './pages/ServicesPage';
 import { UsersPage } from './pages/UsersPage';
 import { AccountPage } from './pages/AccountPage';
@@ -34,6 +35,16 @@ export function App() {
             <RequireAuth>
               <AppLayout>
                 <MyAppointmentsPage />
+              </AppLayout>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/agendar"
+          element={
+            <RequireAuth>
+              <AppLayout>
+                <NewAppointmentPage />
               </AppLayout>
             </RequireAuth>
           }

@@ -1,8 +1,9 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   clearTokens,
   getAccessToken,
   getRefreshToken,
+  getUser,
   login as loginRequest,
   logoutRequest,
   saveTokens,
@@ -19,6 +20,7 @@ type AuthContextValue = {
   isAuthenticated: boolean;
   userId: string | null;
   role: Role | null;
+  name: string | null;
   login: (email: string, password: string) => Promise<Role>;
   logout: () => Promise<void>;
   /** Chamado quando a sessão expira de verdade (refresh falhou) — limpa estado local. */
@@ -50,6 +52,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const token = getAccessToken();
     return token ? decodeJwt(token) : null;
   });
+  const [name, setName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!payload) {
+      setName(null);
+      return;
+    }
+
+    let active = true;
+    getUser(payload.sub)
+      .then((user) => {
+        if (active) setName(user.name);
+      })
+      .catch(() => {
+        if (active) setName(null);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [payload]);
 
   async function login(email: string, password: string) {
     const tokens = await loginRequest({ email, password });
@@ -81,11 +104,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAuthenticated: payload !== null,
       userId: payload?.sub ?? null,
       role: payload?.role ?? null,
+      name,
       login,
       logout,
       handleSessionExpired,
     }),
-    [payload],
+    [payload, name],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

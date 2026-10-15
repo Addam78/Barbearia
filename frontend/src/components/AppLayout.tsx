@@ -21,6 +21,7 @@ function navItemsFor(role: Role): NavItem[] {
 
   const items: NavItem[] = [
     { label: 'Painel', to: '/dashboard', allow: ['BARBER', 'ADMIN'] },
+    { label: 'Agendar', to: '/agendar' },
     { label: agendamentosLabel, to: '/meus-agendamentos' },
     { label: 'Serviços', to: '/servicos' },
     { label: 'Usuários', to: '/usuarios', allow: ['ADMIN'] },
@@ -31,7 +32,7 @@ function navItemsFor(role: Role): NavItem[] {
 }
 
 export function AppLayout({ children }: { children: ReactNode }) {
-  const { role, logout } = useAuth();
+  const { role, name, logout } = useAuth();
   const location = useLocation();
 
   if (!role) return null;
@@ -70,7 +71,10 @@ export function AppLayout({ children }: { children: ReactNode }) {
         </div>
 
         <div className="flex flex-col gap-3 border-t border-(--color-border) pt-4">
-          <p className="px-2 text-xs text-(--color-text-secondary)">{ROLE_LABEL[role]}</p>
+          <div className="px-2">
+            <p className="text-sm text-(--color-text)">{name ?? '...'}</p>
+            <p className="text-xs text-(--color-text-secondary)">{ROLE_LABEL[role]}</p>
+          </div>
           <button
             type="button"
             onClick={() => logout()}

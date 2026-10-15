@@ -16,12 +16,16 @@ export class UsersController {
   @ApiOperation({
     summary: 'Listar usuários',
     description:
-      'Lista paginada de usuários (`?page=1&limit=10`). Só `ADMIN` e `BARBER`: o `CLIENT` recebe 403. A senha nunca é retornada.',
+      'Lista paginada de usuários (`?page=1&limit=10`). `ADMIN` e `BARBER` veem todos, com todos os campos (menos senha). `CLIENT` só pode chamar com `?role=BARBER` (pra escolher um barbeiro ao agendar) e recebe só `id` e `name`; qualquer outro uso retorna 403.',
   })
-  @Roles('ADMIN', 'BARBER')
   @Get()
-  findAll(@Query('page') page?:string, @Query('limit') limit?:string) {
-    return this.usersService.findAll(Number(page) || 1, Number(limit) || 10);
+  findAll(
+    @CurrentUser() currentUser: AuthUser,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('role') role?: string,
+  ) {
+    return this.usersService.findAll(currentUser, Number(page) || 1, Number(limit) || 10, role);
   }
 
   @ApiOperation({

@@ -39,8 +39,11 @@ export class ServicesService {
 
     }
 
-    async findAll(user: AuthUser, page = 1, limit = 10) {
-        const where = this.scopeFor(user)
+    async findAll(user: AuthUser, page = 1, limit = 10, name?: string) {
+        const where = {
+            ...this.scopeFor(user),
+            ...(name ? { name: { contains: name, mode: 'insensitive' as const } } : {}),
+        }
 
         const [data, total] = await Promise.all([
             this.prisma.service.findMany({

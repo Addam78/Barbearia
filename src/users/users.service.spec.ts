@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { UsersService } from './users.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AuthService } from '../auth/auth.service.js';
@@ -108,7 +108,7 @@ describe('UsersService', () => {
       ]as any)
       vi.mocked(prisma.user.count).mockResolvedValue(1)
 
-      const result = await service.findAll()
+      const result = await service.findAll({ userId: 'admin-1', role: 'ADMIN' } as any)
 
       expect(result).toEqual({
         data: [
@@ -119,6 +119,29 @@ describe('UsersService', () => {
         limit: 10,
         totalPages: 1,
       })
+    })
+
+    it('CLIENT só pode listar com ?role=BARBER, e só recebe id/name', async () => {
+      vi.mocked(prisma.user.findMany).mockResolvedValue([
+        { id: 'barber-1', name: 'Carlos' },
+      ] as any)
+      vi.mocked(prisma.user.count).mockResolvedValue(1)
+
+      const result = await service.findAll({ userId: 'client-1', role: 'CLIENT' } as any, 1, 10, 'BARBER')
+
+      expect(prisma.user.findMany).toHaveBeenCalledWith({
+        where: { role: 'BARBER' },
+        select: { id: true, name: true },
+        skip: 0,
+        take: 10,
+      })
+      expect(result.data).toEqual([{ id: 'barber-1', name: 'Carlos' }])
+    })
+
+    it('CLIENT recebe 403 ao tentar listar sem ?role=BARBER', async () => {
+      await expect(
+        service.findAll({ userId: 'client-1', role: 'CLIENT' } as any),
+      ).rejects.toThrow(ForbiddenException)
     })
   })
 

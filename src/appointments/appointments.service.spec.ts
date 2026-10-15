@@ -38,6 +38,9 @@ describe('AppointmentsService', () => {
           service: {
             findUnique: vi.fn(),
           },
+          user: {
+            findUnique: vi.fn().mockResolvedValue({ id: 'barber-1', role: 'BARBER' }),
+          },
           appointment: {
             findMany: vi.fn(),
             findFirst: vi.fn(),
@@ -217,6 +220,20 @@ describe('AppointmentsService', () => {
       }
 
       await expect(service.create(barber, dto)).rejects.toThrow(ConflictException)
+    })
+
+    it('Deve lançar NotFoundException se barberId não for de um usuário BARBER', async () => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: 'client-2', role: 'CLIENT' } as any)
+
+      const dto = {
+        clientId: 'client-1',
+        barberId: 'client-2',
+        serviceId: 'service-1',
+        scheduledAt: '2026-09-25T09:00:00.000Z',
+      }
+
+      await expect(service.create(barber, dto)).rejects.toThrow(NotFoundException)
+      expect(prisma.service.findUnique).not.toHaveBeenCalled()
     })
   })
 
@@ -453,6 +470,46 @@ describe('AppointmentsService', () => {
       } as any)
 
       await expect(result).rejects.toThrow(ConflictException)
+    })
+  })
+
+  describe('Horários disponíveis', () => {
+    beforeEach(() => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: 'barber-1', role: 'BARBER' } as any)
+      vi.mocked(prisma.service.findUnique).mockResolvedValue({
+        id: 'service-1',
+        durationMinutes: 60,
+        active: true,
+      } as any)
+    })
+
+    it('Retorna lista vazia aos domingos (fechado)', async () => {
+      const result = await service.getAvailability('barber-1', '2026-09-27', 'service-1') // domingo
+
+      expect(result.slots).toEqual([])
+    })
+
+    it('Retorna os horários do dia, excluindo o que já está ocupado', async () => {
+      vi.mocked(prisma.appointment.findMany).mockResolvedValue([
+        {
+          scheduledAt: new Date('2026-09-28T09:00:00.000Z'), // segunda
+          service: { durationMinutes: 60 },
+        },
+      ] as any)
+
+      const result = await service.getAvailability('barber-1', '2026-09-28', 'service-1')
+
+      expect(result.slots).not.toContain('2026-09-28T09:00:00.000Z')
+      expect(result.slots).toContain('2026-09-28T10:00:00.000Z')
+      expect(result.slots[result.slots.length - 1]).toBe('2026-09-28T18:00:00.000Z')
+    })
+
+    it('Deve lançar NotFoundException se barberId não for de um BARBER', async () => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: 'client-1', role: 'CLIENT' } as any)
+
+      await expect(service.getAvailability('client-1', '2026-09-28', 'service-1')).rejects.toThrow(
+        NotFoundException,
+      )
     })
   })
 

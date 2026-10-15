@@ -1,10 +1,12 @@
-import { Body, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Body, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto.js';
 import {  UpdateUserDto } from './dto/update-user.dto.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import bcrypt from 'bcryptjs';
 import { randomBytes } from 'crypto';
 import { NotificationsService } from '../notifications/notifications.service.js';
+import type { AuthUser } from '../auth/decorators/current-user.decorator.js';
+import { Role } from '../generated/prisma/enums.js';
 
 @Injectable()
 export class UsersService {
@@ -55,14 +57,25 @@ export class UsersService {
   }
 
 
-  async findAll(page = 1, limit = 10) {
+  async findAll(currentUser: AuthUser, page = 1, limit = 10, role?: string) {
+      const isClient = currentUser.role === 'CLIENT'
+
+      // CLIENT só pode listar barbeiros (pra escolher um ao agendar), e só com nome/id.
+      if (isClient && role !== Role.BARBER) {
+        throw new ForbiddenException('Você só pode listar barbeiros')
+      }
+
+      const where = role ? { role: role as Role } : {}
+      const select = isClient ? { id: true, name: true } : this.publicFields
+
       const [data, total] = await Promise.all([
         this.prisma.user.findMany({
-          select: this.publicFields,
+          where,
+          select,
           skip: (page - 1) * limit,
           take: limit,
         }),
-        this.prisma.user.count(),
+        this.prisma.user.count({ where }),
       ])
 
       return {

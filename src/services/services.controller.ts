@@ -27,11 +27,16 @@ export class ServicesController {
     @ApiOperation({
         summary: 'Listar serviços',
         description:
-            'Lista paginada de serviços (`?page=1&limit=10`). O `CLIENT` vê só os serviços **ativos**, que é o que ele usa para escolher ao agendar; `ADMIN` e `BARBER` veem todos, inclusive os desativados (campo `active`).',
+            'Lista paginada de serviços (`?page=1&limit=10`), com busca opcional por nome (`?name=corte`, parcial e sem distinção de maiúsculas/minúsculas). O `CLIENT` vê só os serviços **ativos**, que é o que ele usa para escolher ao agendar; `ADMIN` e `BARBER` veem todos, inclusive os desativados (campo `active`).',
     })
     @Get()
-    findAll(@CurrentUser() user: AuthUser, @Query('page') page?:string, @Query('limit') limit?:string){
-        return this.servicesService.findAll(user, Number(page) || 1,Number(limit) || 10)
+    findAll(
+        @CurrentUser() user: AuthUser,
+        @Query('page') page?: string,
+        @Query('limit') limit?: string,
+        @Query('name') name?: string,
+    ) {
+        return this.servicesService.findAll(user, Number(page) || 1, Number(limit) || 10, name)
     }
 
     @ApiOperation({

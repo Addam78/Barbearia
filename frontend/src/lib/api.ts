@@ -173,3 +173,85 @@ export type Paginated<T> = {
 export function getAppointments(page = 1, limit = 10) {
   return apiFetchJson<Paginated<Appointment>>(`/appointments?page=${page}&limit=${limit}`);
 }
+
+export type Service = {
+  id: string;
+  name: string;
+  price: string;
+  durationMinutes: number;
+  active: boolean;
+};
+
+/**
+ * Lista paginada de serviços, com busca opcional por nome. O backend já
+ * escopa por role: CLIENT só recebe ativos, BARBER/ADMIN recebem todos.
+ */
+export function getServices(page = 1, limit = 10, name = '') {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (name) params.set('name', name);
+  return apiFetchJson<Paginated<Service>>(`/services?${params.toString()}`);
+}
+
+export type NamedUser = NamedRef;
+
+/** Lista de barbeiros (nome/id) — o CLIENT só pode chamar GET /users com esse filtro. */
+export function getBarbers() {
+  return apiFetchJson<Paginated<NamedUser>>('/users?role=BARBER&limit=100');
+}
+
+/** Lista de clientes (nome/id) — usado por BARBER/ADMIN pra agendar em nome de um cliente. */
+export function getClients() {
+  return apiFetchJson<Paginated<NamedUser>>('/users?role=CLIENT&limit=100');
+}
+
+/** Dados do próprio usuário (qualquer role pode consultar a própria conta). */
+export function getUser(id: string) {
+  return apiFetchJson<NamedUser>(`/users/${id}`);
+}
+
+export type Availability = {
+  date: string;
+  barberId: string;
+  serviceId: string;
+  slots: string[];
+};
+
+/** Horários livres de um barbeiro em um dia, considerando a duração do serviço escolhido. */
+export function getAvailability(barberId: string, date: string, serviceId: string) {
+  const params = new URLSearchParams({ barberId, date, serviceId });
+  return apiFetchJson<Availability>(`/appointments/availability?${params.toString()}`);
+}
+
+export type CreateAppointmentPayload = {
+  clientId?: string;
+  barberId: string;
+  serviceId: string;
+  scheduledAt: string;
+};
+
+export function createAppointment(payload: CreateAppointmentPayload) {
+  return apiFetchJson<Appointment>('/appointments', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+export type UpdateAppointmentPayload = {
+  status?: AppointmentStatus;
+  scheduledAt?: string;
+  barberId?: string;
+  serviceId?: string;
+};
+
+export function updateAppointment(id: string, payload: UpdateAppointmentPayload) {
+  return apiFetchJson<Appointment>(`/appointments/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function cancelAppointment(id: string) {
+  return updateAppointment(id, { status: 'CANCELLED' });
+}

@@ -3,6 +3,7 @@ import { CreateAppointmentDto } from './dto/create-appointment.dto.js';
 import { UpdateAppointmentDto } from './dto/update-appointment.dto.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { AuthUser } from '../auth/decorators/current-user.decorator.js';
+import { Role } from '../generated/prisma/enums.js';
 
 @Injectable()
 export class AppointmentsService {
@@ -36,6 +37,14 @@ export class AppointmentsService {
     return appointment
   }
 
+  private async assertIsBarber(barberId: string) {
+    const barber = await this.prisma.user.findUnique({ where: { id: barberId } })
+
+    if (!barber || barber.role !== Role.BARBER) {
+      throw new NotFoundException('Barbeiro não encontrado')
+    }
+  }
+
   async create(user: AuthUser, dto: CreateAppointmentDto) {
 
     const clientId = user.role === 'CLIENT' ? user.userId : dto.clientId
@@ -43,6 +52,8 @@ export class AppointmentsService {
     if (!clientId) {
       throw new BadRequestException('clientId é obrigatório')
     }
+
+    await this.assertIsBarber(dto.barberId)
 
     const findService = await this.prisma.service.findUnique({
       where : {id:dto.serviceId}
@@ -63,7 +74,7 @@ export class AppointmentsService {
      return this.prisma.$transaction(
        async (tx) => {
          const barberAppointments = await tx.appointment.findMany({
-           where: { barberId: dto.barberId },
+           where: { barberId: dto.barberId, status: { not: 'CANCELLED' } },
            include: { service: true },
          })
 
@@ -134,6 +145,10 @@ export class AppointmentsService {
     const serviceId = dto.serviceId ?? scheduledappointment.serviceId
     const barberId = dto.barberId ?? scheduledappointment.barberId
 
+    if (dto.barberId) {
+      await this.assertIsBarber(dto.barberId)
+    }
+
     const findService = await this.prisma.service.findUnique({
       where: { id: serviceId }
     })
@@ -153,7 +168,7 @@ export class AppointmentsService {
     return this.prisma.$transaction(
       async (tx) => {
         const barberAppointments = await tx.appointment.findMany({
-          where: { barberId, id: { not: id } }, // exclui o próprio agendamento da checagem
+          where: { barberId, id: { not: id }, status: { not: 'CANCELLED' } }, // exclui o próprio agendamento e cancelados da checagem
           include: { service: true },
         })
 
@@ -177,6 +192,69 @@ export class AppointmentsService {
       { isolationLevel: 'Serializable' },
     )
 
+  }
+
+  // Horário de funcionamento: 09h-19h, fechado domingo. Fixo por enquanto (não varia por barbeiro).
+  private readonly OPENING_HOUR = 9
+  private readonly CLOSING_HOUR = 19
+
+  async getAvailability(barberId: string, date: string, serviceId: string) {
+    if (!barberId || !serviceId) {
+      throw new BadRequestException('barberId e serviceId são obrigatórios')
+    }
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date ?? '')) {
+      throw new BadRequestException('date deve estar no formato YYYY-MM-DD')
+    }
+
+    await this.assertIsBarber(barberId)
+
+    const service = await this.prisma.service.findUnique({ where: { id: serviceId } })
+    if (!service) {
+      throw new NotFoundException('Serviço não existe')
+    }
+    if (!service.active) {
+      throw new BadRequestException('Serviço desativado')
+    }
+
+    const dayStart = new Date(`${date}T00:00:00.000Z`)
+    if (Number.isNaN(dayStart.getTime())) {
+      throw new BadRequestException('date inválida')
+    }
+
+    if (dayStart.getUTCDay() === 0) {
+      return { date, barberId, serviceId, slots: [] } // fechado aos domingos
+    }
+
+    const open = new Date(`${date}T${String(this.OPENING_HOUR).padStart(2, '0')}:00:00.000Z`)
+    const close = new Date(`${date}T${String(this.CLOSING_HOUR).padStart(2, '0')}:00:00.000Z`)
+    const durationMs = service.durationMinutes * 60000
+
+    const nextDay = new Date(dayStart.getTime() + 24 * 60 * 60000)
+    const dayAppointments = await this.prisma.appointment.findMany({
+      where: {
+        barberId,
+        status: { not: 'CANCELLED' },
+        scheduledAt: { gte: dayStart, lt: nextDay },
+      },
+      include: { service: true },
+    })
+
+    const busy = dayAppointments.map((appointment) => ({
+      start: appointment.scheduledAt,
+      end: new Date(appointment.scheduledAt.getTime() + appointment.service.durationMinutes * 60000),
+    }))
+
+    const slots: string[] = []
+    for (let slotStart = open; slotStart.getTime() + durationMs <= close.getTime(); slotStart = new Date(slotStart.getTime() + durationMs)) {
+      const slotEnd = new Date(slotStart.getTime() + durationMs)
+      const overlaps = busy.some((b) => b.start < slotEnd && slotStart < b.end)
+      if (!overlaps) {
+        slots.push(slotStart.toISOString())
+      }
+    }
+
+    return { date, barberId, serviceId, slots }
   }
 
   async remove (user: AuthUser, id: string) {

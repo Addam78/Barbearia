@@ -31,6 +31,19 @@ export class AppointmentsController {
     return this.appointmentsService.findAll(user, Number(page) || 1, Number(limit) || 10);
   }
 
+  @ApiOperation({
+    summary: 'Horários disponíveis de um barbeiro em um dia',
+    description:
+      'Dado `barberId`, `date` (`YYYY-MM-DD`) e `serviceId` (define a duração do corte), retorna os horários livres daquele dia, considerando o horário de funcionamento (09h–19h, fechado domingo) e os horários já ocupados do barbeiro. Não expõe de quem são os horários ocupados, só quais estão livres. Acessível a qualquer usuário logado.',
+  })
+  @Get('availability')
+  getAvailability(
+    @Query('barberId') barberId: string,
+    @Query('date') date: string,
+    @Query('serviceId') serviceId: string,
+  ) {
+    return this.appointmentsService.getAvailability(barberId, date, serviceId);
+  }
 
   @ApiOperation({
     summary: 'Buscar agendamento por id',
