@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, NotFoundException } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { UsersService } from './users.service.js';
 import { CreateUserDto } from './dto/create-user.dto.js';
@@ -31,12 +31,12 @@ export class UsersController {
   @ApiOperation({
     summary: 'Buscar usuário por id',
     description:
-      '`ADMIN` e `BARBER` consultam qualquer usuário; o `CLIENT` só consulta a própria conta (nos demais ids recebe 403). Retorna 404 se o id não existir.',
+      '`ADMIN` e `BARBER` consultam qualquer usuário; o `CLIENT` só consulta a própria conta. Retorna 404 se o id não existir **ou** não for o seu (para não revelar que o id existe).',
   })
   @Get(':id')
   findOne(@Param('id') id: string, @CurrentUser() currentUser: AuthUser) {
     if (currentUser.role === 'CLIENT' && currentUser.userId !== id) {
-      throw new ForbiddenException('Você só pode consultar a própria conta');
+      throw new NotFoundException('Usuario com id informado não encontrado');
     }
     return this.usersService.findOne(id);
   }
@@ -56,7 +56,7 @@ export class UsersController {
   @ApiOperation({
     summary: 'Editar usuário',
     description:
-      'Altera nome e/ou e-mail. O `ADMIN` pode editar qualquer conta; os demais perfis só a própria (senão retorna 403).',
+      'Altera nome e/ou e-mail. O `ADMIN` pode editar qualquer conta; os demais perfis só a própria. Retorna 404 se o id não existir **ou** não for o seu.',
   })
   @Patch(':id')
   update(
@@ -65,7 +65,7 @@ export class UsersController {
     @CurrentUser() currentUser: { userId: string; role: string },
   ) {
     if (currentUser.role !== 'ADMIN' && currentUser.userId !== id) {
-      throw new ForbiddenException('Você só pode editar a própria conta');
+      throw new NotFoundException('Usuario com id informado não encontrado');
     }
     return this.usersService.updateUser(id, updateUserDto);
   }
@@ -73,12 +73,12 @@ export class UsersController {
   @ApiOperation({
     summary: 'Remover usuário',
     description:
-      'O `ADMIN` pode remover qualquer conta; os demais perfis só a própria (senão retorna 403).',
+      'O `ADMIN` pode remover qualquer conta; os demais perfis só a própria. Retorna 404 se o id não existir **ou** não for o seu.',
   })
   @Delete(':id')
   remove(@Param('id') id: string, @CurrentUser() currentUser: { userId: string; role: string }) {
     if (currentUser.role !== 'ADMIN' && currentUser.userId !== id) {
-      throw new ForbiddenException('Você só pode remover a própria conta');
+      throw new NotFoundException('Usuario com id informado não encontrado');
     }
     return this.usersService.deleteUser(id);
   }

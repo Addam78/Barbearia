@@ -104,7 +104,7 @@ describe('Users (e2e)', () => {
       .get(`/users/${barber.id}`)
       .set('Authorization', `Bearer ${client.accessToken}`);
 
-    expect(response.statusCode).toBe(403);
+    expect(response.statusCode).toBe(404);
   });
 
   test('[GET] /users/:id -BARBER consulta outro usuário', async () => {
