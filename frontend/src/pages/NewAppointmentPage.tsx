@@ -12,14 +12,7 @@ import {
   type Service,
 } from '../lib/api';
 import { useAuth } from '../lib/auth';
-
-function formatSlotLabel(iso: string) {
-  return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
-}
-
-function todayISODate() {
-  return new Date().toISOString().slice(0, 10);
-}
+import { formatSlotLabel, todayISODate } from '../lib/datetime';
 
 export function NewAppointmentPage() {
   const { role, handleSessionExpired } = useAuth();

@@ -9,6 +9,7 @@ import {
   type Appointment,
 } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { formatDateTime, formatSlotLabel, todayISODate } from '../lib/datetime';
 
 const STATUS_LABEL: Record<Appointment['status'], string> = {
   PENDING: 'Pendente',
@@ -17,24 +18,7 @@ const STATUS_LABEL: Record<Appointment['status'], string> = {
   COMPLETED: 'Concluído',
 };
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'UTC',
-  });
-}
-
-function formatSlotLabel(iso: string) {
-  return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
-}
-
-function todayISODate() {
-  return new Date().toISOString().slice(0, 10);
-}
+const formatDate = formatDateTime;
 
 /** Modal simples de reagendamento: mesmo barbeiro/serviço, nova data e horário. */
 function RescheduleModal({
