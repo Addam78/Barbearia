@@ -83,9 +83,13 @@ model Appointment {
  
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
- 
 
-  @@unique([barberId, scheduledAt])
+  // Unicidade (barberId, scheduledAt) só para agendamentos NÃO cancelados: é um índice único
+  // PARCIAL ("appointments_barber_slot_active_key", WHERE status <> 'CANCELLED'), criado via SQL
+  // na migration 20261015220000_unique_slot_ignora_cancelados. O Prisma não representa índice
+  // parcial no schema, por isso ele não aparece aqui como @@unique.
+  // ATENÇÃO: ao rodar `prisma migrate dev`, confira se a migration gerada NÃO tem
+  // `DROP INDEX "appointments_barber_slot_active_key"`; se tiver, apague essa linha antes de aplicar.
   @@map("appointments")
 }
 
