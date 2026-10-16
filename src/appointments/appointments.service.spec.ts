@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { AppointmentsService } from './appointments.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { Prisma } from '../generated/prisma/client.js';
 
 describe('AppointmentsService', () => {
   let service: AppointmentsService;
@@ -57,7 +58,16 @@ describe('AppointmentsService', () => {
 
     service = module.get<AppointmentsService>(AppointmentsService);
     prisma = module.get<PrismaService>(PrismaService)
+
+    // "Agora" fixo antes das datas usadas nos testes (set/2026), para a regra de
+    // "não agendar no passado" não depender do dia em que a suíte roda.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-09-01T12:00:00.000Z'))
   });
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
 
 
   it('should be defined', () => {
@@ -325,6 +335,97 @@ describe('AppointmentsService', () => {
     })
   })
 
+  describe('Reservas simultâneas', () => {
+    const dto = {
+      clientId: 'client-1',
+      barberId: 'barber-1',
+      serviceId: 'service-1',
+      scheduledAt: '2026-09-25T13:00:00.000Z',
+    }
+
+    beforeEach(() => {
+      vi.mocked(prisma.service.findUnique).mockResolvedValue({
+        id: 'service-1',
+        durationMinutes: 30,
+        active: true,
+      } as any)
+    })
+
+    it.each(['P2034', 'P2002'])('Converte erro %s do banco em ConflictException (409)', async (code) => {
+      vi.mocked(prisma.$transaction).mockRejectedValueOnce(
+        new Prisma.PrismaClientKnownRequestError('conflito', { code, clientVersion: 'test' }),
+      )
+
+      await expect(service.create(admin, dto as any)).rejects.toThrow(ConflictException)
+    })
+
+    it('Não mascara outros erros do banco', async () => {
+      vi.mocked(prisma.$transaction).mockRejectedValueOnce(
+        new Prisma.PrismaClientKnownRequestError('outro erro', { code: 'P2003', clientVersion: 'test' }),
+      )
+
+      await expect(service.create(admin, dto as any)).rejects.toBeInstanceOf(Prisma.PrismaClientKnownRequestError)
+    })
+
+    it('Reativar um cancelado cujo horário já foi ocupado vira 409', async () => {
+      vi.mocked(prisma.appointment.findFirst).mockResolvedValue({
+        id: 'appointment-1',
+        barberId: 'barber-1',
+        serviceId: 'service-1',
+        scheduledAt: new Date('2026-09-25T13:00:00.000Z'),
+        status: 'CANCELLED',
+      } as any)
+      vi.mocked(prisma.appointment.update).mockRejectedValueOnce(
+        new Prisma.PrismaClientKnownRequestError('unicidade', { code: 'P2002', clientVersion: 'test' }),
+      )
+
+      await expect(
+        service.update(admin, 'appointment-1', { status: 'PENDING' as any }),
+      ).rejects.toThrow(ConflictException)
+    })
+  })
+
+  describe('Agendamento no passado', () => {
+    it('Não permite criar agendamento em horário que já passou', async () => {
+      await expect(
+        service.create(admin, {
+          clientId: 'client-1',
+          barberId: 'barber-1',
+          serviceId: 'service-1',
+          scheduledAt: '2026-08-31T12:00:00.000Z', // antes do "agora" fixo (01/09)
+        } as any),
+      ).rejects.toThrow(BadRequestException)
+
+      expect(tx.appointment.create).not.toHaveBeenCalled()
+    })
+
+    it('Não permite reagendar para um horário que já passou', async () => {
+      vi.mocked(prisma.appointment.findFirst).mockResolvedValue({
+        id: 'appointment-1',
+        barberId: 'barber-1',
+        serviceId: 'service-1',
+        scheduledAt: new Date('2026-09-25T09:00:00.000Z'),
+      } as any)
+
+      await expect(
+        service.update(admin, 'appointment-1', { scheduledAt: '2026-08-31T12:00:00.000Z' } as any),
+      ).rejects.toThrow(BadRequestException)
+
+      expect(tx.appointment.update).not.toHaveBeenCalled()
+    })
+
+    it('Aceita scheduledAt inválido como 400, não como erro interno', async () => {
+      await expect(
+        service.create(admin, {
+          clientId: 'client-1',
+          barberId: 'barber-1',
+          serviceId: 'service-1',
+          scheduledAt: 'nao-e-uma-data',
+        } as any),
+      ).rejects.toThrow(BadRequestException)
+    })
+  })
+
   describe('Atualizar agendamento', () => {
     it('Deve lançar NotFoundException se o agendamento não existir', async () => {
       vi.mocked(prisma.appointment.findFirst).mockResolvedValue(null)
@@ -492,16 +593,46 @@ describe('AppointmentsService', () => {
     it('Retorna os horários do dia, excluindo o que já está ocupado', async () => {
       vi.mocked(prisma.appointment.findMany).mockResolvedValue([
         {
-          scheduledAt: new Date('2026-09-28T09:00:00.000Z'), // segunda
+          scheduledAt: new Date('2026-09-28T09:00:00-03:00'), // segunda, 9h em Brasília
           service: { durationMinutes: 60 },
         },
       ] as any)
 
       const result = await service.getAvailability('barber-1', '2026-09-28', 'service-1')
 
-      expect(result.slots).not.toContain('2026-09-28T09:00:00.000Z')
-      expect(result.slots).toContain('2026-09-28T10:00:00.000Z')
-      expect(result.slots[result.slots.length - 1]).toBe('2026-09-28T18:00:00.000Z')
+      // Slots voltam em UTC (ISO): 9h em Brasília = 12:00Z
+      expect(result.slots).not.toContain('2026-09-28T12:00:00.000Z')
+      expect(result.slots).toContain('2026-09-28T13:00:00.000Z') // 10h em Brasília
+      expect(result.slots[result.slots.length - 1]).toBe('2026-09-28T21:00:00.000Z') // 18h em Brasília, último que cabe até 19h
+    })
+
+    it('Usa o horário de Brasília para abrir (9h) e para a janela do dia', async () => {
+      vi.mocked(prisma.appointment.findMany).mockResolvedValue([])
+
+      const result = await service.getAvailability('barber-1', '2026-09-28', 'service-1')
+
+      expect(result.slots[0]).toBe('2026-09-28T12:00:00.000Z') // 9h em Brasília, não 6h
+      expect(prisma.appointment.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            scheduledAt: {
+              gte: new Date('2026-09-28T03:00:00.000Z'), // meia-noite em Brasília
+              lt: new Date('2026-09-29T03:00:00.000Z'),
+            },
+          }),
+        }),
+      )
+    })
+
+    it('Na grade de hoje, não oferece horários que já passaram', async () => {
+      // "agora" = 01/09 às 14h30 em Brasília
+      vi.setSystemTime(new Date('2026-09-01T14:30:00-03:00'))
+      vi.mocked(prisma.appointment.findMany).mockResolvedValue([])
+
+      const result = await service.getAvailability('barber-1', '2026-09-01', 'service-1')
+
+      expect(result.slots[0]).toBe('2026-09-01T18:00:00.000Z') // 15h em Brasília: primeiro horário depois de agora
+      expect(result.slots).not.toContain('2026-09-01T17:00:00.000Z') // 14h já passou
     })
 
     it('Deve lançar NotFoundException se barberId não for de um BARBER', async () => {

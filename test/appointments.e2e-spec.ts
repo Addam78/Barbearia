@@ -77,7 +77,7 @@ describe('Appointments (e2e)', () => {
         clientId,
         barberId,
         serviceId: serviceResponse.body.id,
-        scheduledAt: '2026-09-25T09:00:00.000Z',
+        scheduledAt: '2030-09-25T09:00:00.000Z',
       });
 
     expect(response.statusCode).toBe(201);
@@ -99,7 +99,7 @@ describe('Appointments (e2e)', () => {
         clientId,
         barberId,
         serviceId: serviceResponse.body.id,
-        scheduledAt: '2026-09-25T09:00:00.000Z',
+        scheduledAt: '2030-09-25T09:00:00.000Z',
       });
 
     const response = await request(app.getHttpServer())
@@ -109,7 +109,7 @@ describe('Appointments (e2e)', () => {
         clientId,
         barberId,
         serviceId: serviceResponse.body.id,
-        scheduledAt: '2026-09-25T09:15:00.000Z',
+        scheduledAt: '2030-09-25T09:15:00.000Z',
       });
 
     expect(response.statusCode).toBe(409);
@@ -141,7 +141,7 @@ describe('Appointments (e2e)', () => {
         clientId,
         barberId,
         serviceId: serviceResponse.body.id,
-        scheduledAt: '2026-09-25T09:00:00.000Z',
+        scheduledAt: '2030-09-25T09:00:00.000Z',
       });
 
     const response = await request(app.getHttpServer())
@@ -169,7 +169,7 @@ describe('Appointments (e2e)', () => {
         clientId,
         barberId,
         serviceId: serviceResponse.body.id,
-        scheduledAt: '2026-09-25T09:00:00.000Z',
+        scheduledAt: '2030-09-25T09:00:00.000Z',
       });
 
     const response = await request(app.getHttpServer())
@@ -199,7 +199,7 @@ describe('Appointments (e2e)', () => {
     const oldAppointment = await request(app.getHttpServer())
       .post('/appointments')
       .set('Authorization', `Bearer ${accessToken}`)
-      .send({ clientId, barberId, serviceId, scheduledAt: '2026-09-25T09:00:00.000Z' });
+      .send({ clientId, barberId, serviceId, scheduledAt: '2030-09-25T09:00:00.000Z' });
 
     await request(app.getHttpServer())
       .patch(`/services/${serviceId}`)
@@ -209,7 +209,7 @@ describe('Appointments (e2e)', () => {
     const newAppointment = await request(app.getHttpServer())
       .post('/appointments')
       .set('Authorization', `Bearer ${accessToken}`)
-      .send({ clientId, barberId, serviceId, scheduledAt: '2026-09-25T10:00:00.000Z' });
+      .send({ clientId, barberId, serviceId, scheduledAt: '2030-09-25T10:00:00.000Z' });
 
     expect(newAppointment.statusCode).toBe(400);
 
@@ -218,6 +218,134 @@ describe('Appointments (e2e)', () => {
       .set('Authorization', `Bearer ${accessToken}`);
 
     expect(stillThere.statusCode).toBe(200);
+  });
+
+  test('[POST] /appointments -horário que já passou - 400', async () => {
+    const { accessToken, barberId } = await getBarber();
+    const clientId = await getClient();
+
+    const serviceResponse = await request(app.getHttpServer())
+      .post('/services')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ name: 'Corte simples', price: 20, durationMinutes: 30 });
+
+    const response = await request(app.getHttpServer())
+      .post('/appointments')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({
+        clientId,
+        barberId,
+        serviceId: serviceResponse.body.id,
+        scheduledAt: '2020-01-06T12:00:00.000Z',
+      });
+
+    expect(response.statusCode).toBe(400);
+  });
+
+  test('[POST] /appointments -cancelar libera o horário para outro cliente (índice parcial)', async () => {
+    const { accessToken, barberId } = await getBarber();
+    const clientId = await getClient();
+
+    const serviceResponse = await request(app.getHttpServer())
+      .post('/services')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ name: 'Corte simples', price: 20, durationMinutes: 30 });
+
+    const serviceId = serviceResponse.body.id;
+    const scheduledAt = '2030-09-25T13:00:00.000Z';
+
+    const first = await request(app.getHttpServer())
+      .post('/appointments')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ clientId, barberId, serviceId, scheduledAt });
+
+    expect(first.statusCode).toBe(201);
+
+    const cancel = await request(app.getHttpServer())
+      .patch(`/appointments/${first.body.id}`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ status: 'CANCELLED' });
+
+    expect(cancel.statusCode).toBe(200);
+
+    // Mesmo barbeiro, mesmo horário: antes quebrava com erro de unicidade (500).
+    const second = await request(app.getHttpServer())
+      .post('/appointments')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ clientId, barberId, serviceId, scheduledAt });
+
+    expect(second.statusCode).toBe(201);
+
+    // Dois agendamentos ATIVOS no mesmo horário continuam bloqueados.
+    const third = await request(app.getHttpServer())
+      .post('/appointments')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ clientId, barberId, serviceId, scheduledAt });
+
+    expect(third.statusCode).toBe(409);
+  });
+
+  test('[PATCH] /appointments/:id -reativar cancelado cujo horário foi ocupado - 409', async () => {
+    const { accessToken, barberId } = await getBarber();
+    const clientId = await getClient();
+
+    const serviceResponse = await request(app.getHttpServer())
+      .post('/services')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ name: 'Corte simples', price: 20, durationMinutes: 30 });
+
+    const serviceId = serviceResponse.body.id;
+    const scheduledAt = '2030-09-25T14:00:00.000Z';
+
+    const first = await request(app.getHttpServer())
+      .post('/appointments')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ clientId, barberId, serviceId, scheduledAt });
+
+    await request(app.getHttpServer())
+      .patch(`/appointments/${first.body.id}`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ status: 'CANCELLED' });
+
+    await request(app.getHttpServer())
+      .post('/appointments')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ clientId, barberId, serviceId, scheduledAt });
+
+    const reactivate = await request(app.getHttpServer())
+      .patch(`/appointments/${first.body.id}`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ status: 'PENDING' });
+
+    expect(reactivate.statusCode).toBe(409);
+  });
+
+  test('[POST] /appointments -duas reservas simultâneas no mesmo horário: uma 201, outra 409 (nunca 500)', async () => {
+    const { accessToken, barberId } = await getBarber();
+    const clientId = await getClient();
+
+    const serviceResponse = await request(app.getHttpServer())
+      .post('/services')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ name: 'Corte simples', price: 20, durationMinutes: 30 });
+
+    const body = {
+      clientId,
+      barberId,
+      serviceId: serviceResponse.body.id,
+      scheduledAt: '2030-09-25T15:00:00.000Z',
+    };
+
+    const send = () =>
+      request(app.getHttpServer())
+        .post('/appointments')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send(body);
+
+    const [a, b] = await Promise.all([send(), send()]);
+    const statuses = [a.statusCode, b.statusCode].sort();
+
+    expect(statuses).toEqual([201, 409]);
   });
 
   describe('controle de acesso do CLIENT', () => {
@@ -271,7 +399,7 @@ describe('Appointments (e2e)', () => {
           clientId: clientB.clientId,
           barberId: barber.barberId,
           serviceId,
-          scheduledAt: '2026-09-25T09:00:00.000Z',
+          scheduledAt: '2030-09-25T09:00:00.000Z',
         });
 
       expect(response.statusCode).toBe(201);
@@ -281,8 +409,8 @@ describe('Appointments (e2e)', () => {
     test('[GET] /appointments -CLIENT lista só os próprios agendamentos', async () => {
       const { barber, clientA, clientB, serviceId } = await setup();
 
-      await createAppointmentAsBarber(barber.accessToken, barber.barberId, clientA.clientId, serviceId, '2026-09-25T09:00:00.000Z');
-      await createAppointmentAsBarber(barber.accessToken, barber.barberId, clientB.clientId, serviceId, '2026-09-25T10:00:00.000Z');
+      await createAppointmentAsBarber(barber.accessToken, barber.barberId, clientA.clientId, serviceId, '2030-09-25T09:00:00.000Z');
+      await createAppointmentAsBarber(barber.accessToken, barber.barberId, clientB.clientId, serviceId, '2030-09-25T10:00:00.000Z');
 
       const response = await request(app.getHttpServer())
         .get('/appointments')
@@ -298,7 +426,7 @@ describe('Appointments (e2e)', () => {
       const { barber, clientA, clientB, serviceId } = await setup();
 
       const appointmentOfB = await createAppointmentAsBarber(
-        barber.accessToken, barber.barberId, clientB.clientId, serviceId, '2026-09-25T09:00:00.000Z',
+        barber.accessToken, barber.barberId, clientB.clientId, serviceId, '2030-09-25T09:00:00.000Z',
       );
 
       const response = await request(app.getHttpServer())
@@ -312,7 +440,7 @@ describe('Appointments (e2e)', () => {
       const { barber, clientA, clientB, serviceId } = await setup();
 
       const appointmentOfB = await createAppointmentAsBarber(
-        barber.accessToken, barber.barberId, clientB.clientId, serviceId, '2026-09-25T09:00:00.000Z',
+        barber.accessToken, barber.barberId, clientB.clientId, serviceId, '2030-09-25T09:00:00.000Z',
       );
 
       const response = await request(app.getHttpServer())

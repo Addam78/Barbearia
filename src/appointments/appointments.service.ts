@@ -4,10 +4,27 @@ import { UpdateAppointmentDto } from './dto/update-appointment.dto.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { AuthUser } from '../auth/decorators/current-user.decorator.js';
 import { Role } from '../generated/prisma/enums.js';
+import { Prisma } from '../generated/prisma/client.js';
 
 @Injectable()
 export class AppointmentsService {
   constructor(private prisma:PrismaService){}
+
+  // Duas reservas simultâneas para o mesmo horário: a transação Serializable aborta uma delas (P2034)
+  // ou o índice único parcial barra a segunda (P2002). Nos dois casos é conflito de horário, não erro 500.
+  private async withSlotConflictAs409<T>(operation: () => Promise<T>): Promise<T> {
+    try {
+      return await operation()
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        (error.code === 'P2034' || error.code === 'P2002')
+      ) {
+        throw new ConflictException('Horário acabou de ser reservado por outro cliente. Escolha outro horário.')
+      }
+      throw error
+    }
+  }
 
   // Nomes em vez de só os ids — sem trazer o User/Service inteiro (evita vazar password hasheada).
   private readonly withNames = {
@@ -37,6 +54,15 @@ export class AppointmentsService {
     return appointment
   }
 
+  private assertIsFuture(startsAt: Date) {
+    if (Number.isNaN(startsAt.getTime())) {
+      throw new BadRequestException('scheduledAt inválido')
+    }
+    if (startsAt.getTime() <= Date.now()) {
+      throw new BadRequestException('Não é possível agendar em um horário que já passou')
+    }
+  }
+
   private async assertIsBarber(barberId: string) {
     const barber = await this.prisma.user.findUnique({ where: { id: barberId } })
 
@@ -52,6 +78,8 @@ export class AppointmentsService {
     if (!clientId) {
       throw new BadRequestException('clientId é obrigatório')
     }
+
+    this.assertIsFuture(new Date(dto.scheduledAt))
 
     await this.assertIsBarber(dto.barberId)
 
@@ -71,7 +99,7 @@ export class AppointmentsService {
     const startsAt = new Date(dto.scheduledAt)
     const endAt = new Date(startsAt.getTime() + findService.durationMinutes * 60000)
 
-     return this.prisma.$transaction(
+     return this.withSlotConflictAs409(() => this.prisma.$transaction(
        async (tx) => {
          const barberAppointments = await tx.appointment.findMany({
            where: { barberId: dto.barberId, status: { not: 'CANCELLED' } },
@@ -99,7 +127,7 @@ export class AppointmentsService {
          })
        },
        { isolationLevel: 'Serializable' },
-     )
+     ))
 
   }
 
@@ -135,11 +163,19 @@ export class AppointmentsService {
     const isReschedule = dto.scheduledAt || dto.barberId || dto.serviceId
 
     if (!isReschedule) {
-      return this.prisma.appointment.update({
-        where: { id },
-        data: { status: dto.status },
-        include: this.withNames,
-      })
+      // Reativar um cancelado cujo horário já foi ocupado esbarra no índice único parcial (P2002) -> 409.
+      return this.withSlotConflictAs409(() =>
+        this.prisma.appointment.update({
+          where: { id },
+          data: { status: dto.status },
+          include: this.withNames,
+        }),
+      )
+    }
+
+    // Só valida quando a data muda: trocar barbeiro/serviço de um agendamento já existente não depende disso.
+    if (dto.scheduledAt) {
+      this.assertIsFuture(new Date(dto.scheduledAt))
     }
 
     const serviceId = dto.serviceId ?? scheduledappointment.serviceId
@@ -165,7 +201,7 @@ export class AppointmentsService {
     const startsAt = dto.scheduledAt ? new Date(dto.scheduledAt) : scheduledappointment.scheduledAt
     const endAt = new Date(startsAt.getTime() + findService.durationMinutes * 60000)
 
-    return this.prisma.$transaction(
+    return this.withSlotConflictAs409(() => this.prisma.$transaction(
       async (tx) => {
         const barberAppointments = await tx.appointment.findMany({
           where: { barberId, id: { not: id }, status: { not: 'CANCELLED' } }, // exclui o próprio agendamento e cancelados da checagem
@@ -190,13 +226,20 @@ export class AppointmentsService {
         })
       },
       { isolationLevel: 'Serializable' },
-    )
+    ))
 
   }
 
-  // Horário de funcionamento: 09h-19h, fechado domingo. Fixo por enquanto (não varia por barbeiro).
+  // Horário de funcionamento: 09h-19h no horário de Brasília, fechado domingo. Fixo por enquanto (não varia por barbeiro).
   private readonly OPENING_HOUR = 9
   private readonly CLOSING_HOUR = 19
+  // Offset fixo de America/Sao_Paulo: o Brasil não tem horário de verão desde 2019.
+  private readonly TZ_OFFSET = '-03:00'
+
+  // Converte "YYYY-MM-DD" + hora local da barbearia em um instante (Date em UTC).
+  private localTime(date: string, hour: number) {
+    return new Date(`${date}T${String(hour).padStart(2, '0')}:00:00${this.TZ_OFFSET}`)
+  }
 
   async getAvailability(barberId: string, date: string, serviceId: string) {
     if (!barberId || !serviceId) {
@@ -217,17 +260,19 @@ export class AppointmentsService {
       throw new BadRequestException('Serviço desativado')
     }
 
-    const dayStart = new Date(`${date}T00:00:00.000Z`)
+    // Meia-noite no horário de Brasília (03:00 UTC), não meia-noite UTC.
+    const dayStart = this.localTime(date, 0)
     if (Number.isNaN(dayStart.getTime())) {
       throw new BadRequestException('date inválida')
     }
 
-    if (dayStart.getUTCDay() === 0) {
+    // Meio-dia local evita erro de virada de dia ao descobrir o dia da semana.
+    if (this.localTime(date, 12).getUTCDay() === 0) {
       return { date, barberId, serviceId, slots: [] } // fechado aos domingos
     }
 
-    const open = new Date(`${date}T${String(this.OPENING_HOUR).padStart(2, '0')}:00:00.000Z`)
-    const close = new Date(`${date}T${String(this.CLOSING_HOUR).padStart(2, '0')}:00:00.000Z`)
+    const open = this.localTime(date, this.OPENING_HOUR)
+    const close = this.localTime(date, this.CLOSING_HOUR)
     const durationMs = service.durationMinutes * 60000
 
     const nextDay = new Date(dayStart.getTime() + 24 * 60 * 60000)
@@ -245,8 +290,11 @@ export class AppointmentsService {
       end: new Date(appointment.scheduledAt.getTime() + appointment.service.durationMinutes * 60000),
     }))
 
+    const now = Date.now()
     const slots: string[] = []
     for (let slotStart = open; slotStart.getTime() + durationMs <= close.getTime(); slotStart = new Date(slotStart.getTime() + durationMs)) {
+      if (slotStart.getTime() <= now) continue // horário que já passou (relevante quando date = hoje)
+
       const slotEnd = new Date(slotStart.getTime() + durationMs)
       const overlaps = busy.some((b) => b.start < slotEnd && slotStart < b.end)
       if (!overlaps) {
