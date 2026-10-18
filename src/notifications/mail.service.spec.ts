@@ -17,6 +17,24 @@ describe('MailService', () => {
     sendMail.mockReset().mockResolvedValue(undefined);
   });
 
+  describe('remetente (from)', () => {
+    it('usa MAIL_FROM quando definido', async () => {
+      const service = createService({ MAIL_FROM: 'Barbearia <contato@exemplo.com>', SMTP_USER: 'login@smtp-provedor.com' });
+
+      await service.sendRegistrationConfirmationEmail('ana@barbearia.com', 'Ana');
+
+      expect(sendMail.mock.calls[0][0].from).toBe('Barbearia <contato@exemplo.com>');
+    });
+
+    it('sem MAIL_FROM, cai no SMTP_USER', async () => {
+      const service = createService({ SMTP_USER: 'no-reply@exemplo.com' });
+
+      await service.sendInviteEmail('carlos@barbearia.com', 'Carlos', 'abc-123');
+
+      expect(sendMail.mock.calls[0][0].from).toBe('no-reply@exemplo.com');
+    });
+  });
+
   describe('sendInviteEmail', () => {
     it('monta o link do convite na tela do frontend, usando FRONTEND_URL', async () => {
       const service = createService({ FRONTEND_URL: 'https://barbearia.exemplo.com', SMTP_USER: 'no-reply@exemplo.com' });
