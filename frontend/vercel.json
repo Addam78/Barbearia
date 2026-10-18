@@ -1,3 +1,4 @@
 {
+  "installCommand": "pnpm install --ignore-workspace --no-frozen-lockfile",
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
 }
