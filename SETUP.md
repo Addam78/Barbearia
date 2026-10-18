@@ -22,7 +22,7 @@ docker compose up -d
 # 4. aplicar as migrations
 pnpm prisma migrate deploy
 
-# 5. (opcional) popular o banco com usuários e serviços de exemplo
+# 5. (opcional, só desenvolvimento) popular o banco com admin, barbeiros, clientes e serviços de exemplo
 pnpm prisma db seed
 
 # 6. rodar em modo watch (recompila e reinicia a cada alteração)
@@ -49,7 +49,7 @@ pnpm run start:prod   # produção, a partir do build em dist/
 
 ## Testando a API pelo Scalar
 
-Abra `/docs`. Se você rodou o seed (passo 5), existem estes usuários, todos com a senha `123456` (use só em desenvolvimento):
+Abra `/docs`. Se você rodou o seed (passo 5), existem estes usuários de exemplo, todos com a senha pública `123456`. Esse seed é só para desenvolvimento: ele **se recusa a rodar** com `NODE_ENV=production` ou em um banco que não seja local.
 
 | Perfil | E-mail |
 |---|---|
@@ -66,9 +66,12 @@ O barbeiro **não** tem senha definida pelo admin. O caminho é:
 
 1. Logado como `ADMIN`, chame `POST /users` com `name`, `email` e `role: "BARBER"`.
 2. A API envia um e-mail de convite (veja a seção seguinte sobre configurar o envio).
-3. Do link do e-mail, copie só o valor depois de `token=`. O link em si ainda não abre uma tela, porque o frontend não tem essa página.
-4. Chame `POST /auth/accept-invite` com `{ "token": "...", "password": "..." }`. O token só vale uma vez.
-5. Agora o barbeiro entra normalmente em `POST /auth/login` com o e-mail e a senha que escolheu. Antes do aceite, o login dessa conta retorna 401.
+3. O link do e-mail abre a tela **`/aceitar-convite`** do frontend (`{FRONTEND_URL}/aceitar-convite?token=...`). O barbeiro digita a senha que quer usar duas vezes e confirma. O convite só vale uma vez.
+4. Agora ele entra normalmente na tela de login, com o e-mail e a senha que escolheu. Antes do aceite, o login dessa conta retorna 401.
+
+Sem o frontend rodando, o mesmo passo 3 pode ser feito pela API: copie o valor depois de `token=` do link e chame `POST /auth/accept-invite` com `{ "token": "...", "password": "..." }`.
+
+O link usa a variável `FRONTEND_URL` do `.env` da API (a mesma do CORS), então ela precisa apontar para o endereço onde o frontend está rodando.
 
 ### Configurando o envio de e-mail
 
@@ -89,9 +92,49 @@ O frontend (React + Vite) fica em `frontend/` e tem as próprias dependências:
 ```bash
 cd frontend
 cp .env.example .env     # VITE_API_URL deve apontar para a porta da API
-pnpm install
+pnpm install --ignore-workspace
 pnpm dev                 # http://localhost:5173
 ```
+
+O `--ignore-workspace` é necessário: sem ele, o `pnpm` encontra o `pnpm-workspace.yaml` da raiz e instala as dependências da API em vez das do frontend.
+
+## Usuários iniciais em produção
+
+O seed de desenvolvimento (`pnpm prisma db seed`) **nunca** deve rodar em produção: ele cria usuários com a senha pública `123456`. Em produção:
+
+1. **Admin: crie o seu à mão, direto no banco** (não existe admin padrão). Em um cliente SQL (Beekeeper, DBeaver, `psql`), troque os valores e rode:
+
+   ```sql
+   create extension if not exists pgcrypto;
+
+   insert into users (id, name, email, password, role, "createdAt", "updatedAt")
+   values (
+     gen_random_uuid()::text,
+     'Seu Nome',
+     'seu@email.com',
+     crypt('SUA_SENHA_AQUI', gen_salt('bf', 10)),
+     'ADMIN',
+     now(),
+     now()
+   );
+
+   drop extension pgcrypto;
+   ```
+
+   O `password` é guardado como hash bcrypt (o login compara com a senha que você digitou). Depois de rodar, apague a consulta do histórico do cliente SQL, porque a senha ficou escrita nela. Se preferir que a senha nunca apareça em SQL, gere o hash no terminal e cole só ele no campo `password`:
+
+   ```bash
+   read -rsp "Senha do admin: " P; echo; P="$P" node -e 'console.log(require("bcryptjs").hashSync(process.env.P, 10))'; unset P
+   ```
+
+2. **Barbeiros: pelo convite.** O admin cria em `POST /users` (ou na tela de usuários) e a pessoa define a própria senha pelo link do e-mail. Barbeiro enxerga a lista de usuários e edita serviços, por isso não há barbeiros de demonstração com senha compartilhada.
+3. **Clientes:** se cadastram sozinhos. Se quiser contas de clientes de demonstração, use o seed de produção, que cria só clientes e **não tem senha fixa** (a senha vem da variável `SEED_PASSWORD`):
+
+   ```bash
+   SEED_PASSWORD='uma-senha-forte' pnpm seed:prod
+   ```
+
+   Ele precisa do `tsx` (dependência de desenvolvimento), então rode onde as dependências de desenvolvimento estiverem instaladas, apontando o `DATABASE_URL` para o banco de produção.
 
 O endereço do frontend precisa bater com o `FRONTEND_URL` do `.env` da API (CORS).
 

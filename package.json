@@ -27,7 +27,8 @@
     "pretest:e2e": "cross-env NODE_ENV=test prisma migrate deploy",
     "test:e2e": "cross-env NODE_ENV=test vitest run --config ./vitest.config.e2e.ts",
     "test:e2e:watch": "cross-env NODE_ENV=test vitest --config ./vitest.config.e2e.ts",
-    "db:test:reset": "cross-env NODE_ENV=test prisma migrate reset --force --skip-seed"
+    "db:test:reset": "cross-env NODE_ENV=test prisma migrate reset --force --skip-seed",
+    "seed:prod": "tsx prisma/seed-prod.ts"
   },
   "dependencies": {
     "@golevelup/nestjs-rabbitmq": "^9.1.0",
