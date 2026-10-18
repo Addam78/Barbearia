@@ -64,6 +64,25 @@ export async function login(payload: LoginPayload): Promise<TokenPair> {
   return response.json();
 }
 
+/** Rota pública: o usuário convidado ainda não tem sessão, então não passa por apiFetch. */
+export async function acceptInvite(token: string, password: string): Promise<void> {
+  const response = await fetch(`${API_URL}/auth/accept-invite`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, password }),
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      throw new ApiError(
+        401,
+        'Este convite é inválido ou já foi utilizado. Peça um novo convite ao administrador.',
+      );
+    }
+    throw new ApiError(response.status, 'Não foi possível definir a senha agora. Tente novamente.');
+  }
+}
+
 export async function refresh(refreshToken: string): Promise<TokenPair> {
   const response = await fetch(`${API_URL}/auth/refresh`, {
     method: 'POST',
