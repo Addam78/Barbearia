@@ -19,7 +19,8 @@ export class MailService {
   }
 
   async sendInviteEmail(to: string, name: string, token: string) {
-    const link = `http://localhost:3000/auth/accept-invite?token=${token}`;
+    const frontendUrl = (this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:5173').replace(/\/+$/, '');
+    const link = `${frontendUrl}/aceitar-convite?token=${encodeURIComponent(token)}`;
 
     await this.transporter.sendMail({
       from: this.config.get<string>('SMTP_USER'),
