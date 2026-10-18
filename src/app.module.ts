@@ -12,14 +12,18 @@ import { LoggerModule } from 'nestjs-pino';
 import { NotificationsModule } from './notifications/notifications.module.js';
 
 const isTest = process.env.NODE_ENV === 'test';
+const isProduction = process.env.NODE_ENV === 'production';
 
 @Module({
   imports: [
     LoggerModule.forRoot({
       pinoHttp: {
-        transport: isTest
-          ? undefined
-          : { target: 'pino-pretty', options: { colorize: true } },
+        // pino-pretty é dependência de desenvolvimento: só colore o log no seu terminal.
+        // Em produção ele nem está instalado, então o log sai em JSON (uma linha por evento).
+        transport:
+          isTest || isProduction
+            ? undefined
+            : { target: 'pino-pretty', options: { colorize: true } },
         level: isTest ? 'silent' : 'info',
         redact: ['req.headers.authorization', 'req.body.password'], // nunca logar token/senha
       },
