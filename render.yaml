@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: barbearia-api
+    runtime: node
+    plan: free
+    region: virginia
+    # --prod=false: com NODE_ENV=production o pnpm pularia as devDependencies (nest, prisma, typescript), necessárias no build.
+    # O cp leva o motor nativo do Prisma (.node) para o dist, que o tsc não copia.
+    buildCommand: pnpm install --frozen-lockfile --prod=false && pnpm prisma generate && pnpm build && cp src/generated/prisma/*.node dist/generated/prisma/
+    startCommand: pnpm prisma migrate deploy && node dist/main
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: 22
+      - key: SMTP_HOST
+        value: smtp-relay.brevo.com
+      # Porta 2525: o Render (plano free) bloqueia 25, 465 e 587.
+      - key: SMTP_PORT
+        value: 2525
+      # Valores secretos ou pessoais: preencher no painel do Render (Environment).
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: AMQP_URL
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: MAIL_FROM
+        sync: false

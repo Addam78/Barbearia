@@ -11,8 +11,9 @@ async function bootstrap() {
   });
   app.useLogger(app.get(Logger))
 
+  // O navegador envia a origem sem barra final; uma FRONTEND_URL com "/" no fim barraria o CORS.
   app.enableCors({
-    origin: process.env.FRONTEND_URL ?? 'http://localhost:5173',
+    origin: (process.env.FRONTEND_URL ?? 'http://localhost:5173').replace(/\/+$/, ''),
   });
 
   app.useGlobalPipes(

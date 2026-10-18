@@ -10,6 +10,7 @@ import { ServicesModule } from './services/services.module.js';
 import { RolesGuard } from './auth/guards/roles.guard.js';
 import { LoggerModule } from 'nestjs-pino';
 import { NotificationsModule } from './notifications/notifications.module.js';
+import { HealthController } from './health.controller.js';
 
 const isTest = process.env.NODE_ENV === 'test';
 const isProduction = process.env.NODE_ENV === 'production';
@@ -42,6 +43,7 @@ const isProduction = process.env.NODE_ENV === 'production';
     ServicesModule,
     NotificationsModule
   ],
+  controllers: [HealthController],
   providers: [
     {
       provide: APP_GUARD,
