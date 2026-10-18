@@ -4,6 +4,48 @@ API de agendamento para barbearia, construída como projeto de estudo com foco e
 
 > Instruções de instalação e execução estão em [SETUP.md](./SETUP.md). Com a API rodando, a documentação interativa das rotas fica em `/docs` (Scalar).
 
+## Status do projeto
+
+### Backend: todas as rotas funcionam
+
+Todas as rotas da API estão implementadas, cobertas por testes automatizados (unitários e e2e) e no ar em produção. A documentação interativa completa fica em `/docs`.
+
+| Grupo | Rotas |
+|---|---|
+| Autenticação | `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`, `POST /auth/accept-invite` |
+| Usuários | `GET /users`, `GET /users/:id`, `POST /users` (convite), `PATCH /users/:id`, `DELETE /users/:id` |
+| Serviços | `POST /services`, `GET /services`, `GET /services/:id`, `PATCH /services/:id` (desativa com `active: false`) |
+| Agendamentos | `POST /appointments`, `GET /appointments`, `GET /appointments/availability`, `GET /appointments/:id`, `PATCH /appointments/:id`, `DELETE /appointments/:id` (cancela) |
+| Infraestrutura | `GET /health` |
+
+### Frontend: parcialmente implementado
+
+O frontend (React) cobre o fluxo principal de agendamento, mas ainda tem telas em construção. Enquanto elas não existem, as funções correspondentes continuam disponíveis pela API (`/docs`).
+
+| Tela | Rota | Status |
+|---|---|---|
+| Login | `/login` | Funcionando |
+| Aceitar convite | `/aceitar-convite` | Funcionando (destino do link do e-mail de convite) |
+| Painel (barbeiro e admin) | `/dashboard` | Funcionando: agenda de atendimentos, com cancelar e reagendar |
+| Agendar | `/agendar` | Funcionando: escolha de barbeiro, serviço, dia e horário livre |
+| Agendamentos | `/meus-agendamentos` | Funcionando: listagem com cancelar e reagendar, conforme o perfil |
+| Serviços | `/servicos` | Parcial: listagem com busca e paginação. Criar, editar e desativar serviços só pela API |
+| Criar conta | `/register` | Em construção (o cadastro de cliente funciona pela API, em `POST /auth/register`) |
+| Usuários | `/usuarios` | Em construção (o convite de barbeiro funciona pela API, em `POST /users`) |
+| Minha conta | `/conta` | Em construção |
+
+### Em produção
+
+| Peça | Serviço |
+|---|---|
+| API (NestJS) | Render, plano gratuito |
+| Frontend (React) | Vercel |
+| Banco de dados | Prisma Postgres |
+| Fila (RabbitMQ) | CloudAMQP |
+| E-mail | Brevo, por SMTP na porta 2525 (o plano gratuito do Render bloqueia as portas 25, 465 e 587) |
+
+A API está em <https://barbearia-api-dkzi.onrender.com/docs>. No plano gratuito do Render ela "dorme" depois de um tempo sem uso, então a primeira requisição pode levar cerca de 50 segundos, e os e-mails enviados nesse intervalo podem atrasar.
+
 ## Funcionalidades
 
 - **Autenticação com JWT** e três perfis: `CLIENT`, `BARBER` e `ADMIN`, com controle de acesso por perfil (RBAC).
@@ -47,10 +89,10 @@ API de agendamento para barbearia, construída como projeto de estudo com foco e
 - **API:** NestJS + TypeScript
 - **Banco de dados:** PostgreSQL + Prisma ORM
 - **Autenticação:** JWT (Passport) + bcrypt
-- **Mensageria e e-mail:** RabbitMQ (`@golevelup/nestjs-rabbitmq`) e Nodemailer
+- **Mensageria e e-mail:** RabbitMQ (`@golevelup/nestjs-rabbitmq`) e Nodemailer (SMTP)
 - **Documentação da API:** Swagger + Scalar
 - **Logs:** Pino
-- **Frontend:** React + Vite + Tailwind (SPA, em andamento)
+- **Frontend:** React + Vite + Tailwind (SPA, parcialmente implementado: veja o status acima)
 - **Testes:** Vitest (unitários e e2e)
 - **CI:** GitHub Actions (lint, build e testes em cada push/PR)
 
@@ -70,7 +112,8 @@ test/               # testes e2e
 
 ## Roadmap
 
-- [ ] Frontend: tela de aceitar convite (e o link do e-mail apontando para ela) e telas de agendamento
+- [ ] Frontend: telas de criar conta, usuários (convite de barbeiro) e minha conta
+- [ ] Frontend: criar, editar e desativar serviços na tela de serviços
 - [ ] Padrão *transactional outbox*: garantir consistência entre gravar no banco e publicar o evento na fila
 - [ ] Chave de idempotência nas criações (ex: `POST /appointments`)
 
