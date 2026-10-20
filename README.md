@@ -4,6 +4,28 @@ API de agendamento para barbearia, construída como projeto de estudo com foco e
 
 > Instruções de instalação e execução estão em [SETUP.md](./SETUP.md). Com a API rodando, a documentação interativa das rotas fica em `/docs` (Scalar).
 
+## Deploys
+
+O projeto está no ar, em planos gratuitos.
+
+| O quê | Hospedagem | Link |
+|---|---|---|
+| Frontend (React) | [Vercel](https://vercel.com) | <https://barbearia-git-addam-addam78s-projects.vercel.app> |
+| Documentação da API (Scalar) | [Render](https://render.com) | <https://barbearia-api-dkzi.onrender.com/docs> |
+
+> No plano gratuito do Render a API "dorme" depois de um tempo sem uso, então o primeiro acesso pode levar cerca de 50 segundos.
+
+### Conta para testar
+
+Uma conta de **cliente** de demonstração, para quem quiser experimentar sem se cadastrar:
+
+| Campo | Valor |
+|---|---|
+| E-mail | `joao@email.com` |
+| Senha | `senha123` |
+
+Entre pelo frontend em `/login`, ou faça `POST /auth/login` na documentação da API e use o `accessToken` no campo Bearer. É uma conta pública de teste: não guarde dados pessoais nela. As contas de barbeiro e de administrador também existem, mas não são públicas.
+
 ## Status do projeto
 
 ### Backend: todas as rotas funcionam
@@ -33,18 +55,6 @@ O frontend (React) cobre o fluxo principal de agendamento, mas ainda tem telas e
 | Criar conta | `/register` | Em construção (o cadastro de cliente funciona pela API, em `POST /auth/register`) |
 | Usuários | `/usuarios` | Em construção (o convite de barbeiro funciona pela API, em `POST /users`) |
 | Minha conta | `/conta` | Em construção |
-
-### Em produção
-
-| Peça | Serviço |
-|---|---|
-| API (NestJS) | Render, plano gratuito |
-| Frontend (React) | Vercel |
-| Banco de dados | Prisma Postgres |
-| Fila (RabbitMQ) | CloudAMQP |
-| E-mail | Brevo, por SMTP na porta 2525 (o plano gratuito do Render bloqueia as portas 25, 465 e 587) |
-
-A API está em <https://barbearia-api-dkzi.onrender.com/docs>. No plano gratuito do Render ela "dorme" depois de um tempo sem uso, então a primeira requisição pode levar cerca de 50 segundos, e os e-mails enviados nesse intervalo podem atrasar.
 
 ## Funcionalidades
 
