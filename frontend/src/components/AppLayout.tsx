@@ -9,7 +9,7 @@ type NavItem = {
   allow?: Role[];
 };
 
-const ROLE_LABEL: Record<Role, string> = {
+export const ROLE_LABEL: Record<Role, string> = {
   CLIENT: 'Cliente',
   BARBER: 'Barbeiro',
   ADMIN: 'Administrador',
