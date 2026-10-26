@@ -153,9 +153,9 @@ function RescheduleModal({
   );
 }
 
-/** Tabela de agendamentos (data, cliente, barbeiro, serviço, status), com ações de cancelar/reagendar. */
+/** Tabela de agendamentos (data, cliente, barbeiro, serviço, status), com ações de cancelar/reagendar/concluir. */
 export function AppointmentsTable() {
-  const { handleSessionExpired } = useAuth();
+  const { role, handleSessionExpired } = useAuth();
   const [appointments, setAppointments] = useState<Appointment[] | null>(null);
   const [error, setError] = useState('');
   const [reschedulingId, setReschedulingId] = useState<string | null>(null);
@@ -192,6 +192,21 @@ export function AppointmentsTable() {
     }
   }
 
+  async function handleComplete(id: string) {
+    if (!window.confirm('Marcar este agendamento como concluído?')) return;
+
+    try {
+      await updateAppointment(id, { status: 'COMPLETED' });
+      load();
+    } catch (err) {
+      if (err instanceof SessionExpiredError) {
+        handleSessionExpired();
+        return;
+      }
+      setError(err instanceof ApiError ? err.message : 'Não foi possível concluir agora.');
+    }
+  }
+
   if (error) {
     return <p className="text-sm text-(--color-error)">{error}</p>;
   }
@@ -223,6 +238,7 @@ export function AppointmentsTable() {
           <tbody>
             {appointments.map((appointment) => {
               const canAct = appointment.status === 'PENDING' || appointment.status === 'CONFIRMED';
+              const canComplete = canAct && (role === 'BARBER' || role === 'ADMIN');
               return (
                 <tr key={appointment.id} className="border-b border-(--color-border) last:border-0">
                   <td className="px-4 py-3 text-(--color-text)">{formatDate(appointment.scheduledAt)}</td>
@@ -237,6 +253,15 @@ export function AppointmentsTable() {
                   <td className="px-4 py-3">
                     {canAct && (
                       <div className="flex gap-3">
+                        {canComplete && (
+                          <button
+                            type="button"
+                            onClick={() => handleComplete(appointment.id)}
+                            className="text-xs text-(--color-accent) hover:underline"
+                          >
+                            Concluir
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => setReschedulingId(appointment.id)}
