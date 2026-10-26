@@ -25,14 +25,14 @@ O frontend (React) cobre o fluxo principal de agendamento, mas ainda tem telas e
 | Tela | Rota | Status |
 |---|---|---|
 | Login | `/login` | Funcionando |
+| Criar conta | `/register` | Funcionando: cadastro de cliente (sempre `CLIENT`, não escolhe perfil) |
 | Aceitar convite | `/aceitar-convite` | Funcionando (destino do link do e-mail de convite) |
-| Painel (barbeiro e admin) | `/dashboard` | Funcionando: agenda de atendimentos, com cancelar e reagendar |
+| Painel (barbeiro e admin) | `/dashboard` | Funcionando: agenda de atendimentos, com concluir, cancelar e reagendar |
 | Agendar | `/agendar` | Funcionando: escolha de barbeiro, serviço, dia e horário livre |
-| Agendamentos | `/meus-agendamentos` | Funcionando: listagem com cancelar e reagendar, conforme o perfil |
+| Agendamentos | `/meus-agendamentos` | Funcionando: listagem com concluir (barbeiro/admin), cancelar e reagendar, conforme o perfil |
 | Serviços | `/servicos` | Parcial: listagem com busca e paginação. Criar, editar e desativar serviços só pela API |
-| Criar conta | `/register` | Em construção (o cadastro de cliente funciona pela API, em `POST /auth/register`) |
+| Minha conta | `/conta` | Funcionando: exibe nome, perfil e e-mail (somente leitura) |
 | Usuários | `/usuarios` | Em construção (o convite de barbeiro funciona pela API, em `POST /users`) |
-| Minha conta | `/conta` | Em construção |
 
 ### Em produção
 
@@ -112,7 +112,7 @@ test/               # testes e2e
 
 ## Roadmap
 
-- [ ] Frontend: telas de criar conta, usuários (convite de barbeiro) e minha conta
+- [ ] Frontend: tela de usuários (convite de barbeiro, editar/remover conta)
 - [ ] Frontend: criar, editar e desativar serviços na tela de serviços
 - [ ] Padrão *transactional outbox*: garantir consistência entre gravar no banco e publicar o evento na fila
 - [ ] Chave de idempotência nas criações (ex: `POST /appointments`)
