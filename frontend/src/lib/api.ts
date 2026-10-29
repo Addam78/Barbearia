@@ -64,6 +64,28 @@ export async function login(payload: LoginPayload): Promise<TokenPair> {
   return response.json();
 }
 
+export type RegisterPayload = {
+  name: string;
+  email: string;
+  password: string;
+};
+
+/** Rota pública: cria sempre uma conta CLIENT. Sem sessão após o cadastro — o usuário faz login em seguida. */
+export async function register(payload: RegisterPayload): Promise<void> {
+  const response = await fetch(`${API_URL}/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    if (response.status === 409) {
+      throw new ApiError(409, 'Este e-mail já está cadastrado.');
+    }
+    throw new ApiError(response.status, 'Não foi possível criar a conta agora. Tente novamente.');
+  }
+}
+
 /** Rota pública: o usuário convidado ainda não tem sessão, então não passa por apiFetch. */
 export async function acceptInvite(token: string, password: string): Promise<void> {
   const response = await fetch(`${API_URL}/auth/accept-invite`, {
@@ -223,9 +245,16 @@ export function getClients() {
   return apiFetchJson<Paginated<NamedUser>>('/users?role=CLIENT&limit=100');
 }
 
+export type Role = 'CLIENT' | 'BARBER' | 'ADMIN';
+
+export type Account = NamedRef & {
+  email: string;
+  role: Role;
+};
+
 /** Dados do próprio usuário (qualquer role pode consultar a própria conta). */
 export function getUser(id: string) {
-  return apiFetchJson<NamedUser>(`/users/${id}`);
+  return apiFetchJson<Account>(`/users/${id}`);
 }
 
 export type Availability = {
