@@ -41,7 +41,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-(--color-bg) text-(--color-text)">
-      <aside className="flex w-64 flex-col justify-between border-r border-(--color-border) bg-(--color-panel) px-5 py-6">
+      <aside className="sticky top-0 flex h-screen w-64 shrink-0 flex-col justify-between overflow-y-auto border-r border-(--color-border) bg-(--color-panel) px-5 py-6">
         <div>
           <div className="flex items-center gap-2 px-2">
             <Mark className="h-7 w-7 text-(--color-accent)" />

@@ -1,5 +1,8 @@
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
 
+/** O backend limita tentativas de login, cadastro e aceite de convite por IP (429). */
+const TOO_MANY_REQUESTS_MESSAGE = 'Muitas tentativas. Aguarde um minuto e tente de novo.';
+
 export class ApiError extends Error {
   status: number;
 
@@ -58,6 +61,9 @@ export async function login(payload: LoginPayload): Promise<TokenPair> {
     if (response.status === 401) {
       throw new ApiError(401, 'E-mail ou senha incorretos.');
     }
+    if (response.status === 429) {
+      throw new ApiError(429, TOO_MANY_REQUESTS_MESSAGE);
+    }
     throw new ApiError(response.status, 'Não foi possível entrar agora. Tente novamente.');
   }
 
@@ -82,6 +88,9 @@ export async function register(payload: RegisterPayload): Promise<void> {
     if (response.status === 409) {
       throw new ApiError(409, 'Este e-mail já está cadastrado.');
     }
+    if (response.status === 429) {
+      throw new ApiError(429, TOO_MANY_REQUESTS_MESSAGE);
+    }
     throw new ApiError(response.status, 'Não foi possível criar a conta agora. Tente novamente.');
   }
 }
@@ -100,6 +109,9 @@ export async function acceptInvite(token: string, password: string): Promise<voi
         401,
         'Este convite é inválido ou já foi utilizado. Peça um novo convite ao administrador.',
       );
+    }
+    if (response.status === 429) {
+      throw new ApiError(429, TOO_MANY_REQUESTS_MESSAGE);
     }
     throw new ApiError(response.status, 'Não foi possível definir a senha agora. Tente novamente.');
   }
@@ -302,4 +314,51 @@ export function updateAppointment(id: string, payload: UpdateAppointmentPayload)
 
 export function cancelAppointment(id: string) {
   return updateAppointment(id, { status: 'CANCELLED' });
+}
+
+export type ServicePayload = {
+  name: string;
+  price: number;
+  durationMinutes: number;
+};
+
+/** Cria um serviço (BARBER/ADMIN). 409 se já existe um serviço com o mesmo nome. */
+export function createService(payload: ServicePayload) {
+  return apiFetchJson<Service>('/services', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+/** Edita um serviço ou o desativa/reativa (`active`). Serviço não é apagado: o histórico de agendamentos aponta para ele. */
+export function updateService(id: string, payload: Partial<ServicePayload> & { active?: boolean }) {
+  return apiFetchJson<Service>(`/services/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+export type UserRow = Account & { createdAt: string };
+
+/** Lista paginada de usuários (ADMIN/BARBER veem todos), com filtro opcional por perfil. */
+export function getUsers(page = 1, limit = 10, role?: Role) {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (role) params.set('role', role);
+  return apiFetchJson<Paginated<UserRow>>(`/users?${params.toString()}`);
+}
+
+/** Cria um usuário por convite (só ADMIN): sem senha, a pessoa a define pelo link do e-mail. 409 se o e-mail já existe. */
+export function createUser(payload: { name: string; email: string; role: Role }) {
+  return apiFetchJson<UserRow>('/users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+/** Remove um usuário (ADMIN). 409 se ele ainda tem agendamentos. */
+export function deleteUser(id: string) {
+  return apiFetchJson<UserRow>(`/users/${id}`, { method: 'DELETE' });
 }
