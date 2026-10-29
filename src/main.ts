@@ -1,14 +1,20 @@
 import { Logger } from 'nestjs-pino';
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { apiReference } from '@scalar/nestjs-api-reference';
 import { AppModule } from './app.module.js';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bufferLogs: true
   });
+
+  // Atrás do proxy do Render, sem isto toda requisição "chega" do IP do proxy e todos os usuários passam a
+  // dividir o mesmo limite de tentativas. Em produção confia em 1 proxy (ajustável por TRUST_PROXY_HOPS);
+  // localmente não confia em nenhum, para ninguém forjar o IP com o cabeçalho X-Forwarded-For.
+  app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS ?? (process.env.NODE_ENV === 'production' ? 1 : 0)));
   app.useLogger(app.get(Logger))
 
   // O navegador envia a origem sem barra final; uma FRONTEND_URL com "/" no fim barraria o CORS.
@@ -69,6 +75,7 @@ As rotas de listagem aceitam \`?page=1&limit=10\` e retornam \`data\`, \`total\`
 - **403**: seu perfil não tem permissão para a rota.
 - **404**: recurso não encontrado (em agendamentos, também quando ele é de outra pessoa).
 - **409**: conflito (e-mail ou serviço já cadastrado, ou horário indisponível para o barbeiro).
+- **429**: muitas requisições. Login, cadastro e aceite de convite têm limites por minuto por IP; as demais rotas, 100 por minuto.
 `)
     .setVersion('1.0')
     .addBearerAuth()
