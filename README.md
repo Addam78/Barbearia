@@ -1,5 +1,12 @@
 # Barbearia API
 
+**Front:** <https://barbearia-git-addam-addam78s-projects.vercel.app/login>  
+**Back (documentação):** <https://barbearia-api-dkzi.onrender.com/docs>
+
+![Status: funcional e em melhoria](https://img.shields.io/badge/status-funcional%20%C2%B7%20em%20melhoria-yellow)
+
+> O projeto está **funcional e no ar**, mas continua **em evolução**: ainda recebo melhorias de segurança, desempenho e testes. O que vem a seguir está no [Roadmap](#roadmap).
+
 API de agendamento para barbearia, construída como projeto de estudo com foco em **conceitos de system design aplicados a um domínio real**, não apenas em aprender a sintaxe do NestJS.
 
 > Instruções de instalação e execução estão em [SETUP.md](./SETUP.md). Com a API rodando, a documentação interativa das rotas fica em `/docs` (Scalar).
@@ -40,9 +47,9 @@ Todas as rotas da API estão implementadas, cobertas por testes automatizados (u
 | Agendamentos | `POST /appointments`, `GET /appointments`, `GET /appointments/availability`, `GET /appointments/:id`, `PATCH /appointments/:id`, `DELETE /appointments/:id` (cancela) |
 | Infraestrutura | `GET /health` |
 
-### Frontend: parcialmente implementado
+### Frontend: todas as telas implementadas
 
-O frontend (React) cobre o fluxo principal de agendamento, mas ainda tem telas em construção. Enquanto elas não existem, as funções correspondentes continuam disponíveis pela API (`/docs`).
+O frontend (React) cobre o fluxo completo: cadastro e login, agendamento, gestão de serviços e, para o administrador, gestão de usuários com convite de barbeiro. Ainda não há edição de usuário pela tela (a API já tem `PATCH /users/:id`).
 
 | Tela | Rota | Status |
 |---|---|---|
@@ -52,9 +59,9 @@ O frontend (React) cobre o fluxo principal de agendamento, mas ainda tem telas e
 | Painel (barbeiro e admin) | `/dashboard` | Funcionando: agenda de atendimentos, com concluir, cancelar e reagendar |
 | Agendar | `/agendar` | Funcionando: escolha de barbeiro, serviço, dia e horário livre |
 | Agendamentos | `/meus-agendamentos` | Funcionando: listagem com concluir (barbeiro/admin), cancelar e reagendar, conforme o perfil |
-| Serviços | `/servicos` | Parcial: listagem com busca e paginação. Criar, editar e desativar serviços só pela API |
+| Serviços | `/servicos` | Funcionando: listagem com busca e paginação; barbeiro e admin criam, editam e desativam/reativam |
 | Minha conta | `/conta` | Funcionando: exibe nome, perfil e e-mail (somente leitura) |
-| Usuários | `/usuarios` | Em construção (o convite de barbeiro funciona pela API, em `POST /users`) |
+| Usuários (só admin) | `/usuarios` | Funcionando: lista com filtro por perfil, convite de barbeiro e remoção (cliente e barbeiro) |
 
 ## Funcionalidades
 
@@ -90,6 +97,7 @@ O frontend (React) cobre o fluxo principal de agendamento, mas ainda tem telas e
 - **Controle de acesso em camadas.** Guards globais exigem JWT em tudo, exceto nas rotas públicas, e checam o perfil por rota. Nos agendamentos, a consulta é filtrada pelo dono, e o recurso de outra pessoa responde 404 em vez de 403, para não revelar que o id existe.
 - **Serviços são desativados, não apagados.** Um serviço tem o campo `active`: desativá-lo o tira da lista do cliente e bloqueia novos agendamentos, mas os agendamentos antigos continuam apontando para ele. Apagar quebraria o histórico, e o banco nem permitiria remover um serviço já usado.
 - **Idempotência (parcial).** O consumo do convite é idempotente por construção (uso único). Uma chave de idempotência nas criações, para suportar retries de rede, está no roadmap.
+- **Limite de tentativas.** Login, cadastro e aceite de convite têm limite por IP e por minuto (429 acima disso), para dificultar força bruta. O contador fica na memória da API, o que serve a uma instância; com várias, seria preciso um armazenamento compartilhado.
 - **Logs estruturados.** Pino, com token e senha mascarados para nunca aparecerem no log.
 - **Sem cache (por enquanto).** O volume e o padrão de acesso não justificam a complexidade de invalidação neste estágio; será revisitado se houver gargalo real de leitura.
 - **Frontend SPA (React).** O primeiro carregamento é naturalmente mais lento (download do bundle), e as navegações seguintes são instantâneas por não recarregarem a página.
@@ -102,7 +110,7 @@ O frontend (React) cobre o fluxo principal de agendamento, mas ainda tem telas e
 - **Mensageria e e-mail:** RabbitMQ (`@golevelup/nestjs-rabbitmq`) e Nodemailer (SMTP)
 - **Documentação da API:** Swagger + Scalar
 - **Logs:** Pino
-- **Frontend:** React + Vite + Tailwind (SPA, parcialmente implementado: veja o status acima)
+- **Frontend:** React + Vite + Tailwind (SPA)
 - **Testes:** Vitest (unitários e e2e)
 - **CI:** GitHub Actions (lint, build e testes em cada push/PR)
 
@@ -122,8 +130,10 @@ test/               # testes e2e
 
 ## Roadmap
 
-- [ ] Frontend: tela de usuários (convite de barbeiro, editar/remover conta)
-- [ ] Frontend: criar, editar e desativar serviços na tela de serviços
+- [x] Segurança: limite de tentativas (*rate limiting*) em login, cadastro e aceite de convite
+- [ ] Testes e2e no CI (com Postgres e RabbitMQ como serviços do GitHub Actions)
+- [x] Desempenho: limitar a checagem de sobreposição de agendamentos à janela de tempo do horário pedido, em vez de ler todos os agendamentos do barbeiro
+- [ ] Frontend: editar usuário e reenviar convite na tela de usuários
 - [ ] Padrão *transactional outbox*: garantir consistência entre gravar no banco e publicar o evento na fila
 - [ ] Chave de idempotência nas criações (ex: `POST /appointments`)
 

@@ -9,6 +9,8 @@ services:
     buildCommand: pnpm install --frozen-lockfile --prod=false && pnpm prisma generate && pnpm build && cp src/generated/prisma/*.node dist/generated/prisma/
     startCommand: pnpm prisma migrate deploy && node dist/main
     healthCheckPath: /health
+    # Só publica se o CI (lint, build e testes do GitHub Actions) passar no commit.
+    autoDeployTrigger: checksPass
     envVars:
       - key: NODE_ENV
         value: production
