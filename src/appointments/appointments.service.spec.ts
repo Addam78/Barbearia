@@ -115,6 +115,58 @@ describe('AppointmentsService', () => {
     })
   })
 
+    it('A checagem de sobreposição lê só uma janela de tempo, não todo o histórico do barbeiro', async () => {
+      vi.mocked(prisma.service.findUnique).mockResolvedValue({
+        id: 'service-1',
+        durationMinutes: 30,
+        active: true,
+      } as any)
+      vi.mocked(tx.appointment.create).mockResolvedValue({ id: 'appointment-1' } as any)
+
+      await service.create(barber, {
+        clientId: 'client-1',
+        barberId: 'barber-1',
+        serviceId: 'service-1',
+        scheduledAt: '2026-09-25T12:00:00.000Z',
+      })
+
+      // Pedido: 12h00 a 12h30. Janela: de 24h antes do início até o fim do pedido.
+      expect(tx.appointment.findMany).toHaveBeenCalledWith({
+        where: {
+          barberId: 'barber-1',
+          status: { not: 'CANCELLED' },
+          scheduledAt: {
+            gte: new Date('2026-09-24T12:00:00.000Z'),
+            lt: new Date('2026-09-25T12:30:00.000Z'),
+          },
+        },
+        include: { service: true },
+      })
+    })
+
+    it('Ainda recusa uma sobreposição dentro da janela', async () => {
+      vi.mocked(prisma.service.findUnique).mockResolvedValue({
+        id: 'service-1',
+        durationMinutes: 30,
+        active: true,
+      } as any)
+      // Existente às 12h15 (30 min): cai dentro do pedido das 12h00 às 12h30.
+      vi.mocked(tx.appointment.findMany).mockResolvedValue([
+        { scheduledAt: new Date('2026-09-25T12:15:00.000Z'), service: { durationMinutes: 30 } },
+      ] as any)
+
+      await expect(
+        service.create(barber, {
+          clientId: 'client-1',
+          barberId: 'barber-1',
+          serviceId: 'service-1',
+          scheduledAt: '2026-09-25T12:00:00.000Z',
+        }),
+      ).rejects.toThrow(ConflictException)
+
+      expect(tx.appointment.create).not.toHaveBeenCalled()
+    })
+
     it('CLIENT agenda sempre para si mesmo, ignorando o clientId enviado', async () => {
       vi.mocked(prisma.service.findUnique).mockResolvedValue({
         id: 'service-1',
@@ -367,21 +419,63 @@ describe('AppointmentsService', () => {
       await expect(service.create(admin, dto as any)).rejects.toBeInstanceOf(Prisma.PrismaClientKnownRequestError)
     })
 
-    it('Reativar um cancelado cujo horário já foi ocupado vira 409', async () => {
-      vi.mocked(prisma.appointment.findFirst).mockResolvedValue({
-        id: 'appointment-1',
-        barberId: 'barber-1',
-        serviceId: 'service-1',
-        scheduledAt: new Date('2026-09-25T13:00:00.000Z'),
-        status: 'CANCELLED',
-      } as any)
-      vi.mocked(prisma.appointment.update).mockRejectedValueOnce(
-        new Prisma.PrismaClientKnownRequestError('unicidade', { code: 'P2002', clientVersion: 'test' }),
-      )
+  })
+
+  describe('Reativação de agendamento cancelado', () => {
+    const cancelled = {
+      id: 'appointment-1',
+      barberId: 'barber-1',
+      serviceId: 'service-1',
+      scheduledAt: new Date('2026-09-25T13:00:00.000Z'),
+      status: 'CANCELLED',
+    }
+
+    it('Não deixa reativar um cancelado (409), sem tocar no banco', async () => {
+      vi.mocked(prisma.appointment.findFirst).mockResolvedValue(cancelled as any)
+
+      for (const status of ['PENDING', 'CONFIRMED', 'COMPLETED']) {
+        await expect(
+          service.update(admin, 'appointment-1', { status: status as any }),
+        ).rejects.toThrow(ConflictException)
+      }
+
+      expect(prisma.appointment.update).not.toHaveBeenCalled()
+      expect(prisma.$transaction).not.toHaveBeenCalled()
+    })
+
+    it('Também recusa reativar junto de um reagendamento', async () => {
+      vi.mocked(prisma.appointment.findFirst).mockResolvedValue(cancelled as any)
 
       await expect(
-        service.update(admin, 'appointment-1', { status: 'PENDING' as any }),
+        service.update(admin, 'appointment-1', {
+          status: 'PENDING' as any,
+          scheduledAt: '2030-09-25T14:00:00.000Z',
+        } as any),
       ).rejects.toThrow(ConflictException)
+
+      expect(prisma.$transaction).not.toHaveBeenCalled()
+    })
+
+    it('Reenviar CANCELLED num cancelado continua permitido', async () => {
+      vi.mocked(prisma.appointment.findFirst).mockResolvedValue(cancelled as any)
+      vi.mocked(prisma.appointment.update).mockResolvedValue({ ...cancelled } as any)
+
+      await expect(
+        service.update(admin, 'appointment-1', { status: 'CANCELLED' as any }),
+      ).resolves.toBeDefined()
+    })
+
+    it('Cancelar um agendamento pendente continua funcionando', async () => {
+      vi.mocked(prisma.appointment.findFirst).mockResolvedValue({ ...cancelled, status: 'PENDING' } as any)
+      vi.mocked(prisma.appointment.update).mockResolvedValue({ ...cancelled } as any)
+
+      await service.update(admin, 'appointment-1', { status: 'CANCELLED' as any })
+
+      expect(prisma.appointment.update).toHaveBeenCalledWith({
+        where: { id: 'appointment-1' },
+        data: { status: 'CANCELLED' },
+        include: withNames,
+      })
     })
   })
 

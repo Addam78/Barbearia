@@ -69,6 +69,24 @@ describe('Services (e2e)', () => {
     expect(response.statusCode).toBe(403);
   });
 
+  test('[POST] /services -duração acima de 24h (1440 min) - 400, e 1440 é aceito', async () => {
+    const accessToken = await getBarberToken();
+
+    const tooLong = await request(app.getHttpServer())
+      .post('/services')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ name: 'Eterno', price: 20, durationMinutes: 1441 });
+
+    expect(tooLong.statusCode).toBe(400);
+
+    const limit = await request(app.getHttpServer())
+      .post('/services')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ name: 'Dia inteiro', price: 20, durationMinutes: 1440 });
+
+    expect(limit.statusCode).toBe(201);
+  });
+
   test('[PATCH] /services -com token', async () => {
     const accessToken = await getBarberToken();
     const serviceId = await createService(accessToken);

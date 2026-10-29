@@ -1,4 +1,4 @@
-import {IsNumber, IsString, Min, } from  'class-validator'
+import {IsNumber, IsString, Max, Min, } from  'class-validator'
 import { ApiProperty } from '@nestjs/swagger'
 
 export class CreateServiceDto{
@@ -10,9 +10,10 @@ export class CreateServiceDto{
     @IsNumber()
     price:number
 
-    @ApiProperty({ example: 30, minimum: 1, description: 'Duração em minutos (usada para evitar horários sobrepostos)' })
+    @ApiProperty({ example: 30, minimum: 1, maximum: 1440, description: 'Duração em minutos, de 1 a 1440 (usada para evitar horários sobrepostos)' })
     @IsNumber()
     @Min(1)
+    @Max(1440)
     durationMinutes: number;
 
 

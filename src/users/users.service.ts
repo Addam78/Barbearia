@@ -7,6 +7,7 @@ import { randomBytes } from 'crypto';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import type { AuthUser } from '../auth/decorators/current-user.decorator.js';
 import { Role } from '../generated/prisma/enums.js';
+import { Prisma } from '../generated/prisma/client.js';
 
 @Injectable()
 export class UsersService {
@@ -126,9 +127,17 @@ export class UsersService {
       throw new NotFoundException('Usuario com id informado não encontrado')
     }
 
-    return this.prisma.user.delete({
-      where: {id},
-      select: this.publicFields,
-    })
+    try {
+      return await this.prisma.user.delete({
+        where: {id},
+        select: this.publicFields,
+      })
+    } catch (error) {
+      // P2003: o usuário ainda é cliente ou barbeiro de algum agendamento (FK sem cascade).
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
+        throw new ConflictException('Usuário possui agendamentos e não pode ser removido')
+      }
+      throw error
+    }
   }
 }

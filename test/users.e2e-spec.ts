@@ -157,6 +157,37 @@ describe('Users (e2e)', () => {
     expect(findAfterDelete.statusCode).toBe(404);
   });
 
+  test('[DELETE] /users/:id -usuário com agendamentos - 409 (e continua existindo)', async () => {
+    const admin = await createUser('ADMIN', 'admin.teste@example.com');
+    const barber = await createUser('BARBER', 'barbeiro.teste@example.com');
+    const client = await createUser('CLIENT', 'cliente.teste@example.com');
+
+    const service = await prisma.service.create({
+      data: { name: 'Corte simples', price: 20, durationMinutes: 30 },
+    });
+
+    await prisma.appointment.create({
+      data: {
+        clientId: client.id,
+        barberId: barber.id,
+        serviceId: service.id,
+        scheduledAt: new Date('2030-09-25T13:00:00.000Z'),
+      },
+    });
+
+    const response = await request(app.getHttpServer())
+      .delete(`/users/${client.id}`)
+      .set('Authorization', `Bearer ${admin.accessToken}`);
+
+    expect(response.statusCode).toBe(409);
+
+    const stillThere = await request(app.getHttpServer())
+      .get(`/users/${client.id}`)
+      .set('Authorization', `Bearer ${admin.accessToken}`);
+
+    expect(stillThere.statusCode).toBe(200);
+  });
+
   test('[POST] /users -com token de ADMIN - cria barbeiro', async () => {
     const admin = await createUser('ADMIN', 'admin.teste@example.com');
 

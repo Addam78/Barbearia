@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { AuthService } from '../auth/auth.service.js';
 import { JwtService } from '@nestjs/jwt';
 import { NotificationsService } from '../notifications/notifications.service.js';
+import { Prisma } from '../generated/prisma/client.js';
 
 
 
@@ -224,6 +225,27 @@ describe('UsersService', () => {
       )
 
       expect(prisma.user.delete).not.toHaveBeenCalled()
+    })
+
+    it('Deve lançar ConflictException se o usuario ainda tiver agendamentos (P2003)', async() =>{
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(
+        ({id:'user-1',name:'João', email:'joao@example.com',role:'CLIENT'}as any)
+      )
+      vi.mocked(prisma.user.delete).mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError('fk', { code: 'P2003', clientVersion: 'test' }),
+      )
+
+      await expect(service.deleteUser('user-1')).rejects.toThrow(ConflictException)
+    })
+
+    it('Repassa qualquer outro erro do banco ao deletar', async() =>{
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(
+        ({id:'user-1',name:'João', email:'joao@example.com',role:'CLIENT'}as any)
+      )
+      const error = new Error('banco fora do ar')
+      vi.mocked(prisma.user.delete).mockRejectedValue(error)
+
+      await expect(service.deleteUser('user-1')).rejects.toBe(error)
     })
    })
 

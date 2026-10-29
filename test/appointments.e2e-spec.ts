@@ -320,6 +320,78 @@ describe('Appointments (e2e)', () => {
     expect(reactivate.statusCode).toBe(409);
   });
 
+  test('[PATCH] /appointments/:id -reativar cancelado com o horário livre - 409 (cancelado não volta)', async () => {
+    const { accessToken, barberId } = await getBarber();
+    const clientId = await getClient();
+
+    const serviceResponse = await request(app.getHttpServer())
+      .post('/services')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ name: 'Corte simples', price: 20, durationMinutes: 30 });
+
+    const created = await request(app.getHttpServer())
+      .post('/appointments')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ clientId, barberId, serviceId: serviceResponse.body.id, scheduledAt: '2030-09-25T16:00:00.000Z' });
+
+    await request(app.getHttpServer())
+      .patch(`/appointments/${created.body.id}`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ status: 'CANCELLED' });
+
+    const reactivate = await request(app.getHttpServer())
+      .patch(`/appointments/${created.body.id}`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ status: 'CONFIRMED' });
+
+    expect(reactivate.statusCode).toBe(409);
+  });
+
+  test('[PATCH] /appointments/:id -reativar cancelado que se sobreporia a outro ativo (início diferente) - 409', async () => {
+    const { accessToken, barberId } = await getBarber();
+    const clientId = await getClient();
+
+    const serviceResponse = await request(app.getHttpServer())
+      .post('/services')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ name: 'Corte simples', price: 20, durationMinutes: 30 });
+
+    const serviceId = serviceResponse.body.id;
+
+    // João às 10h00 (13h00 UTC), cancelado; depois Maria às 10h15, que cai dentro do intervalo do cancelado.
+    const first = await request(app.getHttpServer())
+      .post('/appointments')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ clientId, barberId, serviceId, scheduledAt: '2030-09-26T13:00:00.000Z' });
+
+    await request(app.getHttpServer())
+      .patch(`/appointments/${first.body.id}`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ status: 'CANCELLED' });
+
+    const overlapping = await request(app.getHttpServer())
+      .post('/appointments')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ clientId, barberId, serviceId, scheduledAt: '2030-09-26T13:15:00.000Z' });
+
+    expect(overlapping.statusCode).toBe(201);
+
+    // Antes da correção, isto devolvia 200 e deixava dois agendamentos ativos sobrepostos.
+    const reactivate = await request(app.getHttpServer())
+      .patch(`/appointments/${first.body.id}`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ status: 'PENDING' });
+
+    expect(reactivate.statusCode).toBe(409);
+
+    const list = await request(app.getHttpServer())
+      .get('/appointments')
+      .set('Authorization', `Bearer ${accessToken}`);
+
+    const active = list.body.data.filter((appointment: { status: string }) => appointment.status !== 'CANCELLED');
+    expect(active).toHaveLength(1);
+  });
+
   test('[POST] /appointments -duas reservas simultâneas no mesmo horário: uma 201, outra 409 (nunca 500)', async () => {
     const { accessToken, barberId } = await getBarber();
     const clientId = await getClient();

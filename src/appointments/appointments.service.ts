@@ -102,7 +102,11 @@ export class AppointmentsService {
      return this.withSlotConflictAs409(() => this.prisma.$transaction(
        async (tx) => {
          const barberAppointments = await tx.appointment.findMany({
-           where: { barberId: dto.barberId, status: { not: 'CANCELLED' } },
+           where: {
+             barberId: dto.barberId,
+             status: { not: 'CANCELLED' },
+             scheduledAt: this.overlapWindow(startsAt, endAt),
+           },
            include: { service: true },
          })
 
@@ -160,17 +164,20 @@ export class AppointmentsService {
   async update(user: AuthUser, id: string, dto: UpdateAppointmentDto) {
     const scheduledappointment = await this.findOwned(user, id)
 
+    // Cancelado não volta a ficar ativo: reativar pularia a checagem de sobreposição (o índice único
+    // parcial só pega início idêntico). Quem quer o horário de novo cria um agendamento novo.
+    if (scheduledappointment.status === 'CANCELLED' && dto.status && dto.status !== 'CANCELLED') {
+      throw new ConflictException('Agendamento cancelado não pode ser reativado. Crie um novo agendamento.')
+    }
+
     const isReschedule = dto.scheduledAt || dto.barberId || dto.serviceId
 
     if (!isReschedule) {
-      // Reativar um cancelado cujo horário já foi ocupado esbarra no índice único parcial (P2002) -> 409.
-      return this.withSlotConflictAs409(() =>
-        this.prisma.appointment.update({
-          where: { id },
-          data: { status: dto.status },
-          include: this.withNames,
-        }),
-      )
+      return this.prisma.appointment.update({
+        where: { id },
+        data: { status: dto.status },
+        include: this.withNames,
+      })
     }
 
     // Só valida quando a data muda: trocar barbeiro/serviço de um agendamento já existente não depende disso.
@@ -204,7 +211,12 @@ export class AppointmentsService {
     return this.withSlotConflictAs409(() => this.prisma.$transaction(
       async (tx) => {
         const barberAppointments = await tx.appointment.findMany({
-          where: { barberId, id: { not: id }, status: { not: 'CANCELLED' } }, // exclui o próprio agendamento e cancelados da checagem
+          where: {
+            barberId,
+            id: { not: id }, // exclui o próprio agendamento
+            status: { not: 'CANCELLED' }, // e os cancelados da checagem
+            scheduledAt: this.overlapWindow(startsAt, endAt),
+          },
           include: { service: true },
         })
 
@@ -235,6 +247,17 @@ export class AppointmentsService {
   private readonly CLOSING_HOUR = 19
   // Offset fixo de America/Sao_Paulo: o Brasil não tem horário de verão desde 2019.
   private readonly TZ_OFFSET = '-03:00'
+
+  // Janela de início dos agendamentos que PODEM se sobrepor a [startsAt, endAt): quem começa depois de
+  // endAt não se sobrepõe, e quem começou mais de MAX_SERVICE_MINUTES antes de startsAt já terminou
+  // (nenhum serviço dura mais que isso: ver `durationMinutes` em CreateServiceDto). Assim a checagem lê
+  // só uns poucos agendamentos em vez de todo o histórico do barbeiro, o que também reduz os abortos
+  // da transação Serializable. A conta exata de sobreposição continua sendo feita depois.
+  private readonly MAX_SERVICE_MINUTES = 24 * 60
+
+  private overlapWindow(startsAt: Date, endAt: Date) {
+    return { gte: new Date(startsAt.getTime() - this.MAX_SERVICE_MINUTES * 60000), lt: endAt }
+  }
 
   // Converte "YYYY-MM-DD" + hora local da barbearia em um instante (Date em UTC).
   private localTime(date: string, hour: number) {
